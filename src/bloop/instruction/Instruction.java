@@ -1,5 +1,7 @@
 package bloop.instruction;
 
-public interface Instruction {
+import bloop.runtime.Environment;
 
+public interface Instruction {
+    void execute(Environment env);
 }

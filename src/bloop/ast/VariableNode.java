@@ -1,17 +1,21 @@
 package bloop.ast;
 
-import org.w3c.dom.Node;
+import bloop.runtime.Environment;
 
 public class VariableNode implements Expression {
 
     private final String name;
 
     public VariableNode(String name) {
+        if (name == null || name.trim().isEmpty())
+            throw new IllegalArgumentException("VariableNode: name cannot be null or empty");
         this.name = name;
     }
 
     @Override
-    public Object evaluate(Object env) {
-        return null; // will do it later, after Environment class
+    public Object evaluate(Environment env) {
+        if (env == null)
+            throw new IllegalArgumentException("VariableNode: environment cannot be null");
+        return env.get(name);
     }
 }

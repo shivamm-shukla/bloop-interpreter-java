@@ -120,73 +120,72 @@ public class Tokenizer {
         tokens.add(new Token(TokenType.STRING, value, line));
     }
 
-    // ───────────── OPERATORS ─────────────
-     // ───────────── OPERATORS ─────────────
-private void tokenizeOperator(char current) {
-
-    switch (current) {
-
-        case '+':
-            tokens.add(new Token(TokenType.PLUS, "+", line));
-            break;
-
-        case '-':
-            tokens.add(new Token(TokenType.MINUS, "-", line));
-            break;
-
-        case '*':
-            tokens.add(new Token(TokenType.STAR, "*", line));
-            break;
-
-        case '/':
-            tokens.add(new Token(TokenType.SLASH, "/", line));
-            break;
-
-        case '>':
-            if (peek() == '=') {
-                pos++;
-                tokens.add(new Token(TokenType.GREATER_EQUAL, ">=", line));
-            } else {
-                tokens.add(new Token(TokenType.GREATER, ">", line));
-            }
-            break;
-
-        case '<':
-            if (peek() == '=') {
-                pos++;
-                tokens.add(new Token(TokenType.LESS_EQUAL, "<=", line));
-            } else {
-                tokens.add(new Token(TokenType.LESS, "<", line));
-            }
-            break;
-
-        case '=':
-            if (peek() == '=') {
-                pos++;
-                tokens.add(new Token(TokenType.EQUAL_EQUAL, "==", line));
-            } else {
-                throw new RuntimeException("Unexpected '=' at line " + line);
-            }
-            break;
-
-        case '!':
-            if (peek() == '=') {
-                pos++;
-                tokens.add(new Token(TokenType.NOT_EQUAL, "!=", line));
-            } else {
-                throw new RuntimeException("Unexpected '!' at line " + line);
-            }
-            break;
-
-        case ':':
-            tokens.add(new Token(TokenType.COLON, ":", line));
-            break;
-
-        default:
-            throw new RuntimeException("Unexpected character: " + current + " at line " + line);
-    }
-}
+        // ───────────── OPERATORS ─────────────
+    private void tokenizeOperator(char current) {
     
+        switch (current) {
+    
+            case '+':
+                tokens.add(new Token(TokenType.PLUS, "+", line));
+                break;
+    
+            case '-':
+                tokens.add(new Token(TokenType.MINUS, "-", line));
+                break;
+    
+            case '*':
+                tokens.add(new Token(TokenType.STAR, "*", line));
+                break;
+    
+            case '/':
+                tokens.add(new Token(TokenType.SLASH, "/", line));
+                break;
+    
+            case '>':
+                if (peek() == '=') {
+                    pos++;
+                    tokens.add(new Token(TokenType.GREATER_EQUAL, ">=", line));
+                } else {
+                    tokens.add(new Token(TokenType.GREATER, ">", line));
+                }
+                break;
+    
+            case '<':
+                if (peek() == '=') {
+                    pos++;
+                    tokens.add(new Token(TokenType.LESS_EQUAL, "<=", line));
+                } else {
+                    tokens.add(new Token(TokenType.LESS, "<", line));
+                }
+                break;
+    
+            case '=':
+                if (peek() == '=') {
+                    pos++;
+                    tokens.add(new Token(TokenType.EQUAL_EQUAL, "==", line));
+                } else {
+                    throw new RuntimeException("Unexpected '=' at line " + line);
+                }
+                break;
+    
+            case '!':
+                if (peek() == '=') {
+                    pos++;
+                    tokens.add(new Token(TokenType.NOT_EQUAL, "!=", line));
+                } else {
+                    throw new RuntimeException("Unexpected '!' at line " + line);
+                }
+                break;
+    
+            case ':':
+                tokens.add(new Token(TokenType.COLON, ":", line));
+                break;
+    
+            default:
+                throw new RuntimeException("Unexpected character: " + current + " at line " + line);
+        }
+    }
+        
     // ───────── INDENTATION ─────────
     private void handleIndentation() {
         int spaces = 0;

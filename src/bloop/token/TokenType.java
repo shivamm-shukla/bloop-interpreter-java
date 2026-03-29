@@ -21,17 +21,21 @@ public enum TokenType {
     MINUS,     // -
     STAR,      // *
     SLASH,     // /
-    GREATER,   // >
-    LESS,      // <
-    EQUAL_EQUAL, // ==
+    // Comparison Operators
+    GREATER,          // >
+    LESS,             // <
+    GREATER_EQUAL,    // >=
+    LESS_EQUAL,       // <=
+    EQUAL_EQUAL,      // ==
+    NOT_EQUAL,        // !=
 
     // Structure
        
     COLON,        // :
     NEWLINE,      // \n
-    INDENT,       // indentation increase
-    DEDENT,       // indentation decrease
+    INDENT,       /
+    DEDENT,      
 
-    // Special
+   
     EOF
 }

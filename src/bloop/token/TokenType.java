@@ -26,7 +26,11 @@ public enum TokenType {
     EQUAL_EQUAL, // ==
 
     // Structure
-    NEWLINE,
+       
+    COLON,        // :
+    NEWLINE,      // \n
+    INDENT,       // indentation increase
+    DEDENT,       // indentation decrease
 
     // Special
     EOF

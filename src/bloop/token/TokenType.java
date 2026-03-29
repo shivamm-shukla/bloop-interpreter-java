@@ -11,7 +11,7 @@ public enum TokenType {
     REPEAT,
     TIMES,
 
-    // Identifiers & literals
+    // Literals & identifiers
     IDENTIFIER,
     NUMBER,
     STRING,
@@ -25,7 +25,9 @@ public enum TokenType {
     LESS,      // <
     EQUAL_EQUAL, // ==
 
-    // Special
+    // Structure
     NEWLINE,
+
+    // Special
     EOF
 }

@@ -1,6 +1,8 @@
 package bloop.ast;
 
+import bloop.runtime.Environment;
+
 public interface Expression {
 
-    Object evaluate(Object env);
+    Object evaluate(Environment env);
 }

@@ -18,9 +18,8 @@ Thumbs.db
 # Logs
 *.log
 
-# Java build tools (optional but good practice)
 target/
 build/
 
-# VS Code workspace files (extra safety)
+
 *.code-workspace

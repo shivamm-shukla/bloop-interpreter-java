@@ -186,6 +186,30 @@ private void tokenizeOperator(char current) {
             throw new RuntimeException("Unexpected character: " + current + " at line " + line);
     }
 }
+    
+    // ───────── INDENTATION ─────────
+    private void handleIndentation() {
+        int spaces = 0;
+
+        while (pos < input.length() && input.charAt(pos) == ' ') {
+            spaces++;
+            pos++;
+        }
+
+        int prevIndent = indentStack.peek();
+
+        if (spaces > prevIndent) {
+            indentStack.push(spaces);
+            tokens.add(new Token(TokenType.INDENT, "", line));
+        }
+        else {
+            while (spaces < prevIndent) {
+                indentStack.pop();
+                tokens.add(new Token(TokenType.DEDENT, "", line));
+                prevIndent = indentStack.peek();
+            }
+        }
+    
     }
 
     private char peek() {

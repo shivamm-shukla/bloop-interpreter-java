@@ -34,7 +34,7 @@ public class Tokenizer {
                 tokenizeNumber();
             }
 
-            // Words (keywords or identifiers)
+            
             else if (Character.isLetter(current)) {
                 tokenizeWord();
             }

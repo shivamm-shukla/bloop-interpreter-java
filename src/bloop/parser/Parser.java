@@ -11,38 +11,36 @@ import java.util.List;
 
 public class Parser {
 
-    private final List<Token> tokenList;
+    private final List<Token> tokens;
     private int currentIndex = 0;
 
-    // ════════════════════════════════════════════
-    //  Constructor
-    // ════════════════════════════════════════════
 
-    public Parser(List<Token> tokenList) {
-        if (tokenList == null || tokenList.isEmpty())
+    // Constructor
+
+    public Parser(List<Token> tokens) {
+        if (tokens == null || tokens.isEmpty()) {
             throw new BloopParseException("Token list cannot be null or empty", 0);
-        this.tokenList = tokenList;
+        }
+        this.tokens = tokens;
     }
 
-    // ════════════════════════════════════════════
-    //  Entry Point
-    // ════════════════════════════════════════════
+
+    // Entry Point
 
     public List<Instruction> parse() {
-        List<Instruction> instructionList = new ArrayList<>();
+        List<Instruction> instructions = new ArrayList<>();
 
         while (!hasReachedEnd()) {
             skipBlankLines();
             if (hasReachedEnd()) break;
-            instructionList.add(parseInstruction());
+            instructions.add(parseInstruction());
         }
 
-        return instructionList;
+        return instructions;
     }
 
-    // ════════════════════════════════════════════
-    //  Instruction Parsers
-    // ════════════════════════════════════════════
+
+    // Instruction Parsing
 
     private Instruction parseInstruction() {
         Token token = currentToken();
@@ -53,314 +51,235 @@ public class Parser {
             case IF:     return parseIfInstruction();
             case REPEAT: return parseRepeatInstruction();
             default:
-                throw new BloopParseException(
-                        "Unexpected token '" + token.getValue() + "'",
-                        token.getLine()
-                );
+                throw createError(token, "Unexpected token '" + token.getValue() + "'");
         }
     }
 
-    // ── put <expr> into <variable> ───────────────────────
     private Instruction parsePutInstruction() {
-        Token putToken = expectAndConsume(TokenType.PUT);
+        Token putToken = consumeExpected(TokenType.PUT, "Expected 'put'");
 
         Expression valueExpression = parseExpression();
 
-        if (!currentTokenIs(TokenType.INTO)) {
-            throw new BloopParseException(
-                    "Expected 'into' after expression in 'put' statement",
-                    currentToken().getLine()
-            );
-        }
-        expectAndConsume(TokenType.INTO);
+        consumeExpected(TokenType.INTO, "Expected 'into' after expression");
 
-        if (!currentTokenIs(TokenType.IDENTIFIER)) {
-            throw new BloopParseException(
-                    "Expected variable name after 'into'",
-                    currentToken().getLine()
-            );
-        }
-        String targetVariableName = expectAndConsume(TokenType.IDENTIFIER).getValue();
+        Token variableToken = consumeExpected(TokenType.IDENTIFIER, "Expected variable name after 'into'");
 
         consumeNewlineIfPresent();
 
-        return new AssignInstruction(targetVariableName, valueExpression);
+        return new AssignInstruction(variableToken.getValue(), valueExpression);
     }
 
-    // ── print <expr> ─────────────────────────────────────
     private Instruction parsePrintInstruction() {
-        expectAndConsume(TokenType.PRINT);
+        Token printToken = consumeExpected(TokenType.PRINT, "Expected 'print'");
 
-        if (hasReachedEnd() || currentTokenIs(TokenType.NEWLINE)) {
-            throw new BloopParseException(
-                    "Expected expression after 'print'",
-                    currentToken().getLine()
-            );
+        if (hasReachedEnd() || isCurrentToken(TokenType.NEWLINE)) {
+            throw createError(printToken, "Expected expression after 'print'");
         }
 
-        Expression expressionToPrint = parseExpression();
+        Expression expression = parseExpression();
         consumeNewlineIfPresent();
 
-        return new PrintInstruction(expressionToPrint);
+        return new PrintInstruction(expression);
     }
 
-    // ── if <expr> then: <block> ──────────────────────────
     private Instruction parseIfInstruction() {
-        Token ifToken = expectAndConsume(TokenType.IF);
+        Token ifToken = consumeExpected(TokenType.IF, "Expected 'if'");
 
-        Expression conditionExpression = parseExpression();
+        Expression condition = parseExpression();
 
-        if (!currentTokenIs(TokenType.THEN)) {
-            throw new BloopParseException(
-                    "Expected 'then' after condition in 'if' statement",
-                    currentToken().getLine()
-            );
-        }
-        expectAndConsume(TokenType.THEN);
-
-        if (!currentTokenIs(TokenType.COLON)) {
-            throw new BloopParseException(
-                    "Expected ':' after 'then'",
-                    currentToken().getLine()
-            );
-        }
-        expectAndConsume(TokenType.COLON);
+        consumeExpected(TokenType.THEN, "Expected 'then' after condition");
+        consumeExpected(TokenType.COLON, "Expected ':' after 'then'");
 
         consumeNewlineIfPresent();
 
-        List<Instruction> bodyInstructions = parseIndentedBlock();
+        List<Instruction> body = parseIndentedBlock();
 
-        if (bodyInstructions.isEmpty()) {
-            throw new BloopParseException(
-                    "Expected at least one instruction in 'if' body",
-                    ifToken.getLine()
-            );
+        if (body.isEmpty()) {
+            throw createError(ifToken, "Expected at least one instruction in 'if' body");
         }
 
-        return new IfInstruction(conditionExpression, bodyInstructions);
+        return new IfInstruction(condition, body);
     }
 
-    // ── repeat <n> times: <block> ────────────────────────
     private Instruction parseRepeatInstruction() {
-        Token repeatToken = expectAndConsume(TokenType.REPEAT);
+        Token repeatToken = consumeExpected(TokenType.REPEAT, "Expected 'repeat'");
 
-        if (!currentTokenIs(TokenType.NUMBER)) {
-            throw new BloopParseException(
-                    "Expected a number after 'repeat'",
-                    currentToken().getLine()
-            );
-        }
+        Token numberToken = consumeExpected(TokenType.NUMBER, "Expected a number after 'repeat'");
+        int repeatCount = parseAndValidateRepeatCount(numberToken);
 
-        Token repeatCountToken = expectAndConsume(TokenType.NUMBER);
-        int repeatCount = parseAndValidateRepeatCount(repeatCountToken);
-
-        if (!currentTokenIs(TokenType.TIMES)) {
-            throw new BloopParseException(
-                    "Expected 'times' after repeat count",
-                    currentToken().getLine()
-            );
-        }
-        expectAndConsume(TokenType.TIMES);
-
-        if (!currentTokenIs(TokenType.COLON)) {
-            throw new BloopParseException(
-                    "Expected ':' after 'times'",
-                    currentToken().getLine()
-            );
-        }
-        expectAndConsume(TokenType.COLON);
+        consumeExpected(TokenType.TIMES, "Expected 'times' after repeat count");
+        consumeExpected(TokenType.COLON, "Expected ':' after 'times'");
 
         consumeNewlineIfPresent();
 
-        List<Instruction> bodyInstructions = parseIndentedBlock();
+        List<Instruction> body = parseIndentedBlock();
 
-        if (bodyInstructions.isEmpty()) {
-            throw new BloopParseException(
-                    "Expected at least one instruction in 'repeat' body",
-                    repeatToken.getLine()
-            );
+        if (body.isEmpty()) {
+            throw createError(repeatToken, "Expected at least one instruction in 'repeat' body");
         }
 
-        return new RepeatInstruction(repeatCount, bodyInstructions);
+        return new RepeatInstruction(repeatCount, body);
     }
 
 
-    //  Indented Block Parser
+    // Block Parsing
 
     private List<Instruction> parseIndentedBlock() {
-        List<Instruction> blockInstructions = new ArrayList<>();
+        List<Instruction> instructions = new ArrayList<>();
 
-        if (!currentTokenIs(TokenType.INDENT)) {
-            throw new BloopParseException(
-                    "Expected indented block after ':'",
-                    currentToken().getLine()
-            );
-        }
-        expectAndConsume(TokenType.INDENT);
+        consumeExpected(TokenType.INDENT, "Expected indented block after ':'");
 
-        while (!hasReachedEnd() && !currentTokenIs(TokenType.DEDENT)) {
+        while (!hasReachedEnd() && !isCurrentToken(TokenType.DEDENT)) {
             skipBlankLines();
-            if (!hasReachedEnd() && !currentTokenIs(TokenType.DEDENT)) {
-                blockInstructions.add(parseInstruction());
+            if (!hasReachedEnd() && !isCurrentToken(TokenType.DEDENT)) {
+                instructions.add(parseInstruction());
             }
         }
 
         if (!hasReachedEnd()) {
-            expectAndConsume(TokenType.DEDENT);
+            consumeExpected(TokenType.DEDENT, "Expected end of block");
         }
 
-        return blockInstructions;
+        return instructions;
     }
 
-    // ════════════════════════════════════════════
-    //  Expression Parsers
-    //  Precedence chain (low → high):
-    //  parseExpression → parseTermExpression → parsePrimaryExpression
-    // ════════════════════════════════════════════
 
-    // ── Handles: + - and all comparisons ────────────────
+    // Expression Parsing
+
     private Expression parseExpression() {
-        Expression leftExpression = parseTermExpression();
+        Expression left = parseTerm();
 
-        while (currentTokenIs(TokenType.PLUS)          ||
-                currentTokenIs(TokenType.MINUS)         ||
-                currentTokenIs(TokenType.GREATER)       ||
-                currentTokenIs(TokenType.LESS)          ||
-                currentTokenIs(TokenType.GREATER_EQUAL) ||
-                currentTokenIs(TokenType.LESS_EQUAL)    ||
-                currentTokenIs(TokenType.EQUAL_EQUAL)   ||
-                currentTokenIs(TokenType.NOT_EQUAL)) {
-
-            String operator = consumeCurrentToken().getValue();
-            Expression rightExpression = parseTermExpression();
-            leftExpression = new BinaryOpNode(leftExpression, operator, rightExpression);
+        while (matchAndConsume(
+                TokenType.PLUS, TokenType.MINUS,
+                TokenType.GREATER, TokenType.LESS,
+                TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL,
+                TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL
+        )) {
+            String operator = lastConsumedToken().getValue();
+            Expression right = parseTerm();
+            left = new BinaryOpNode(left, operator, right);
         }
 
-        return leftExpression;
+        return left;
     }
 
-    // ── Handles: * / ─────────────────────────────────────
-    private Expression parseTermExpression() {
-        Expression leftExpression = parsePrimaryExpression();
+    private Expression parseTerm() {
+        Expression left = parsePrimary();
 
-        while (currentTokenIs(TokenType.STAR) || currentTokenIs(TokenType.SLASH)) {
-            String operator = consumeCurrentToken().getValue();
-            Expression rightExpression = parsePrimaryExpression();
-            leftExpression = new BinaryOpNode(leftExpression, operator, rightExpression);
+        while (matchAndConsume(TokenType.STAR, TokenType.SLASH)) {
+            String operator = lastConsumedToken().getValue();
+            Expression right = parsePrimary();
+            left = new BinaryOpNode(left, operator, right);
         }
 
-        return leftExpression;
+        return left;
     }
 
-    // ── Handles: number, string, variable ───────────────
-    private Expression parsePrimaryExpression() {
+    private Expression parsePrimary() {
         Token token = currentToken();
 
-        if (currentTokenIs(TokenType.NUMBER)) {
-            consumeCurrentToken();
+        if (matchAndConsume(TokenType.NUMBER)) {
             return parseNumberLiteral(token);
         }
 
-        if (currentTokenIs(TokenType.STRING)) {
-            consumeCurrentToken();
+        if (matchAndConsume(TokenType.STRING)) {
             return new StringNode(token.getValue());
         }
 
-        if (currentTokenIs(TokenType.IDENTIFIER)) {
-            consumeCurrentToken();
+        if (matchAndConsume(TokenType.IDENTIFIER)) {
             return new VariableNode(token.getValue());
         }
 
-        throw new BloopParseException(
-                "Expected a number, string, or variable but got '" + token.getValue() + "'",
-                token.getLine()
-        );
+        throw createError(token,
+                "Expected a number, string, or variable but got '" + token.getValue() + "'");
     }
 
-    // ════════════════════════════════════════════
-    //  Helper Methods
-    // ════════════════════════════════════════════
 
-    private Expression parseNumberLiteral(Token numberToken) {
+    // Helpers
+
+    private Expression parseNumberLiteral(Token token) {
         try {
-            double numericValue = Double.parseDouble(numberToken.getValue());
-            return new NumberNode(numericValue);
+            double value = Double.parseDouble(token.getValue());
+            return new NumberNode(value);
         } catch (NumberFormatException e) {
-            throw new BloopParseException(
-                    "Invalid number format: '" + numberToken.getValue() + "'",
-                    numberToken.getLine()
-            );
+            throw createError(token, "Invalid number format: '" + token.getValue() + "'");
         }
     }
 
-    private int parseAndValidateRepeatCount(Token repeatCountToken) {
+    private int parseAndValidateRepeatCount(Token token) {
         try {
-            double numericValue = Double.parseDouble(repeatCountToken.getValue());
+            double value = Double.parseDouble(token.getValue());
 
-            if (numericValue != Math.floor(numericValue)) {
-                throw new BloopParseException(
-                        "Repeat count must be a whole number, got: '" + repeatCountToken.getValue() + "'",
-                        repeatCountToken.getLine()
-                );
-            }
-            if (numericValue < 0) {
-                throw new BloopParseException(
-                        "Repeat count cannot be negative: '" + repeatCountToken.getValue() + "'",
-                        repeatCountToken.getLine()
-                );
+            if (value != Math.floor(value)) {
+                throw createError(token,
+                        "Repeat count must be a whole number, got: '" + token.getValue() + "'");
             }
 
-            return (int) numericValue;
+            if (value < 0) {
+                throw createError(token,
+                        "Repeat count cannot be negative: '" + token.getValue() + "'");
+            }
+
+            return (int) value;
 
         } catch (NumberFormatException e) {
-            throw new BloopParseException(
-                    "Invalid repeat count: '" + repeatCountToken.getValue() + "'",
-                    repeatCountToken.getLine()
-            );
+            throw createError(token, "Invalid repeat count: '" + token.getValue() + "'");
         }
     }
 
     private void consumeNewlineIfPresent() {
-        if (currentTokenIs(TokenType.NEWLINE)) {
-            consumeCurrentToken();
+        if (isCurrentToken(TokenType.NEWLINE)) {
+            consumeToken();
         }
     }
 
     private void skipBlankLines() {
-        while (!hasReachedEnd() && currentTokenIs(TokenType.NEWLINE)) {
-            consumeCurrentToken();
+        while (!hasReachedEnd() && isCurrentToken(TokenType.NEWLINE)) {
+            consumeToken();
         }
     }
 
-    private Token expectAndConsume(TokenType expectedType) {
-        if (currentTokenIs(expectedType)) {
-            return consumeCurrentToken();
+
+    // Token Utilities (Readable Naming)
+
+    private boolean matchAndConsume(TokenType... types) {
+        for (TokenType type : types) {
+            if (isCurrentToken(type)) {
+                consumeToken();
+                return true;
+            }
         }
-        throw new BloopParseException(
-                "Expected '" + expectedType + "' but got '" + currentToken().getValue() + "'",
-                currentToken().getLine()
-        );
+        return false;
     }
 
-    private boolean currentTokenIs(TokenType expectedType) {
-        if (hasReachedEnd()) return false;
-        return currentToken().getType() == expectedType;
-    }
-
-    private Token consumeCurrentToken() {
+    private Token consumeToken() {
         if (!hasReachedEnd()) currentIndex++;
         return lastConsumedToken();
     }
 
-    private Token currentToken() {
-        return tokenList.get(currentIndex);
+    private Token consumeExpected(TokenType type, String message) {
+        if (isCurrentToken(type)) return consumeToken();
+        throw createError(currentToken(), message);
     }
 
-    private Token lastConsumedToken() {
-        return tokenList.get(currentIndex - 1);
+    private boolean isCurrentToken(TokenType type) {
+        if (hasReachedEnd()) return false;
+        return currentToken().getType() == type;
     }
 
     private boolean hasReachedEnd() {
         return currentToken().getType() == TokenType.EOF;
+    }
+
+    private Token currentToken() {
+        return tokens.get(currentIndex);
+    }
+
+    private Token lastConsumedToken() {
+        return tokens.get(currentIndex - 1);
+    }
+
+    private BloopParseException createError(Token token, String message) {
+        return new BloopParseException(message, token.getLine());
     }
 }

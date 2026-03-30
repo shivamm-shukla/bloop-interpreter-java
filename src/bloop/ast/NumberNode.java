@@ -7,15 +7,29 @@ public class NumberNode implements Expression {
     private final double value;
 
     public NumberNode(double value) {
-        if (Double.isNaN(value))
-            throw new IllegalArgumentException("NumberNode: NaN not allowed");
-        if (Double.isInfinite(value))
-            throw new IllegalArgumentException("NumberNode: Infinite value not allowed");
+        validate(value);
         this.value = value;
     }
 
     @Override
     public Object evaluate(Environment env) {
+        return value;
+    }
+
+    // ── Validation ───────────────────────────────────
+
+    private void validate(double value) {
+        if (Double.isNaN(value)) {
+            throw new IllegalArgumentException("NumberNode: NaN is not allowed");
+        }
+        if (Double.isInfinite(value)) {
+            throw new IllegalArgumentException("NumberNode: Infinite values are not allowed");
+        }
+    }
+
+    // for debugging
+
+    public double getValue() {
         return value;
     }
 }

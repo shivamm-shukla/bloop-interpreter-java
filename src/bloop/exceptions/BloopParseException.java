@@ -1,14 +1,12 @@
 package bloop.exceptions;
 
-public class BloopParseException extends RuntimeException {
-    private final int line;
+public class BloopParseException extends BloopException {
 
-    public BloopParseException(String message, int line) {
-        super("Parse Error - Line " + line + ": " + message);
-        this.line = line;
+    public BloopParseException(String message) {
+        super(message);
     }
 
-    public int getLine() {
-        return line;
+    public BloopParseException(String message, int line) {
+        super(message, line);
     }
 }

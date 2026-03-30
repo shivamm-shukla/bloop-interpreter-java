@@ -1,98 +1,113 @@
 package bloop.ast;
 
 import bloop.runtime.Environment;
+import bloop.exceptions.BloopRuntimeException;
 
 public class BinaryOpNode implements Expression {
 
     private final Expression left;
-    private final String operator;
+    private final String op;
     private final Expression right;
 
-    public BinaryOpNode(Expression left, String operator, Expression right) {
-        if (left == null)     throw new IllegalArgumentException("Left expression cannot be null");
-        if (operator == null) throw new IllegalArgumentException("Operator cannot be null");
-        if (right == null)    throw new IllegalArgumentException("Right expression cannot be null");
+    public BinaryOpNode(Expression left, String op, Expression right) {
+        if (left == null)  throw new IllegalArgumentException("Left expression cannot be null");
+        if (op == null)    throw new IllegalArgumentException("Operator cannot be null");
+        if (right == null) throw new IllegalArgumentException("Right expression cannot be null");
+
         this.left = left;
-        this.operator = operator;
+        this.op = op;
         this.right = right;
     }
 
     @Override
     public Object evaluate(Environment env) {
-        Object leftValue  = left.evaluate(env);
-        Object rightValue = right.evaluate(env);
+        Object leftVal  = left.evaluate(env);
+        Object rightVal = right.evaluate(env);
 
-        switch (operator) {
+        switch (op) {
 
             // ── Arithmetic ──────────────────────────────
             case "+":
-                // String + String  →  concatenation
-                if (leftValue instanceof String || rightValue instanceof String) {
-                    return stringify(leftValue) + stringify(rightValue);
-                }
-                return toDouble(leftValue, "+") + toDouble(rightValue, "+");
+                return handleAddition(leftVal, rightVal);
 
             case "-":
-                return toDouble(leftValue, "-") - toDouble(rightValue, "-");
+                return requireNumber(leftVal, "-") - requireNumber(rightVal, "-");
 
             case "*":
-                return toDouble(leftValue, "*") * toDouble(rightValue, "*");
+                return requireNumber(leftVal, "*") * requireNumber(rightVal, "*");
 
             case "/":
-                double divisor = toDouble(rightValue, "/");
-                if (divisor == 0)
-                    throw new RuntimeException("Division by zero");
-                return toDouble(leftValue, "/") / divisor;
+                double divisor = requireNumber(rightVal, "/");
+                if (divisor == 0) {
+                    throw new BloopRuntimeException("Division by zero");
+                }
+                return requireNumber(leftVal, "/") / divisor;
 
             // ── Comparisons ─────────────────────────────
             case ">":
-                return toDouble(leftValue, ">") > toDouble(rightValue, ">");
+                return requireNumber(leftVal, ">") > requireNumber(rightVal, ">");
 
             case "<":
-                return toDouble(leftValue, "<") < toDouble(rightValue, "<");
+                return requireNumber(leftVal, "<") < requireNumber(rightVal, "<");
 
             case ">=":
-                return toDouble(leftValue, ">=") >= toDouble(rightValue, ">=");
+                return requireNumber(leftVal, ">=") >= requireNumber(rightVal, ">=");
 
             case "<=":
-                return toDouble(leftValue, "<=") <= toDouble(rightValue, "<=");
+                return requireNumber(leftVal, "<=") <= requireNumber(rightVal, "<=");
 
             case "==":
-                if (leftValue instanceof Double && rightValue instanceof Double)
-                    return toDouble(leftValue, "==") == toDouble(rightValue, "==");
-                if (leftValue == null) return rightValue == null;
-                return leftValue.equals(rightValue);
+                return isEqual(leftVal, rightVal);
 
             case "!=":
-                if (leftValue instanceof Double && rightValue instanceof Double)
-                    return toDouble(leftValue, "!=") != toDouble(rightValue, "!=");
-                if (leftValue == null) return rightValue != null;
-                return !leftValue.equals(rightValue);
+                return !isEqual(leftVal, rightVal);
 
             default:
-                throw new RuntimeException("Unknown operator: '" + operator + "'");
+                throw new BloopRuntimeException("Unknown operator: '" + op + "'");
         }
     }
 
-    // ── Helpers ─────────────────────────────────────
+    // ── Operation Helpers ────────────────────────────
 
-    private double toDouble(Object value, String op) {
-        if (value instanceof Double)
+    private Object handleAddition(Object leftVal, Object rightVal) {
+        // String concatenation takes precedence
+        if (leftVal instanceof String || rightVal instanceof String) {
+            return stringify(leftVal) + stringify(rightVal);
+        }
+        return requireNumber(leftVal, "+") + requireNumber(rightVal, "+");
+    }
+
+    private boolean isEqual(Object leftVal, Object rightVal) {
+        if (leftVal instanceof Double && rightVal instanceof Double) {
+            return requireNumber(leftVal, "==") == requireNumber(rightVal, "==");
+        }
+        if (leftVal == null) return rightVal == null;
+        return leftVal.equals(rightVal);
+    }
+
+    // ── Utility Helpers ──────────────────────────────
+
+    private double requireNumber(Object value, String op) {
+        if (value instanceof Double) {
             return (Double) value;
-        throw new RuntimeException(
+        }
+        throw new BloopRuntimeException(
                 "Operator '" + op + "' requires a number, got: " +
                         (value == null ? "null" : value.getClass().getSimpleName())
         );
     }
 
     private String stringify(Object value) {
-        if (value == null)       return "null";
+        if (value == null) return "null";
+
         if (value instanceof Double) {
             double d = (Double) value;
-            if (d == Math.floor(d) && !Double.isInfinite(d))
+            if (d == Math.floor(d) && !Double.isInfinite(d)) {
                 return String.valueOf((int) d);
+            }
             return String.valueOf(d);
         }
+
         return value.toString();
     }
 }

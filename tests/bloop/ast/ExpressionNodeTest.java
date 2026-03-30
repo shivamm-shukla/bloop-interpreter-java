@@ -1,7 +1,9 @@
 package bloop.ast;
 
 import bloop.runtime.Environment;
+import bloop.exceptions.BloopRuntimeException;
 import org.junit.jupiter.api.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class ExpressionNodeTest {
@@ -9,7 +11,7 @@ class ExpressionNodeTest {
     private Environment env;
 
     @BeforeEach
-    void setup() {
+    void setUp() {
         env = new Environment();
     }
 
@@ -64,7 +66,7 @@ class ExpressionNodeTest {
 
     @Test
     void variable_undefinedThrows() {
-        assertThrows(RuntimeException.class,
+        assertThrows(BloopRuntimeException.class,
                 () -> new VariableNode("z").evaluate(env));
     }
 
@@ -122,7 +124,7 @@ class ExpressionNodeTest {
         BinaryOpNode node = new BinaryOpNode(
                 new NumberNode(10), ">", new NumberNode(5)
         );
-        assertEquals(true, node.evaluate(env));
+        assertTrue((Boolean) node.evaluate(env));
     }
 
     @Test
@@ -130,7 +132,7 @@ class ExpressionNodeTest {
         BinaryOpNode node = new BinaryOpNode(
                 new NumberNode(3), ">", new NumberNode(5)
         );
-        assertEquals(false, node.evaluate(env));
+        assertFalse((Boolean) node.evaluate(env));
     }
 
     @Test
@@ -138,7 +140,7 @@ class ExpressionNodeTest {
         BinaryOpNode node = new BinaryOpNode(
                 new NumberNode(2), "<", new NumberNode(5)
         );
-        assertEquals(true, node.evaluate(env));
+        assertTrue((Boolean) node.evaluate(env));
     }
 
     @Test
@@ -146,7 +148,7 @@ class ExpressionNodeTest {
         BinaryOpNode node = new BinaryOpNode(
                 new NumberNode(5), "==", new NumberNode(5)
         );
-        assertEquals(true, node.evaluate(env));
+        assertTrue((Boolean) node.evaluate(env));
     }
 
     @Test
@@ -154,14 +156,13 @@ class ExpressionNodeTest {
         BinaryOpNode node = new BinaryOpNode(
                 new NumberNode(5), "==", new NumberNode(6)
         );
-        assertEquals(false, node.evaluate(env));
+        assertFalse((Boolean) node.evaluate(env));
     }
 
     // ── BinaryOpNode — Nested ───────────────
 
     @Test
     void nested_multiplyBeforeAdd() {
-        // 3 + 4 * 2 = 3 + 8 = 11
         BinaryOpNode inner = new BinaryOpNode(
                 new NumberNode(4), "*", new NumberNode(2)
         );
@@ -173,28 +174,29 @@ class ExpressionNodeTest {
 
     @Test
     void nested_withVariables() {
-        // x=10, y=3 → x + y*2 = 16
         env.set("x", 10.0);
         env.set("y", 3.0);
+
         BinaryOpNode inner = new BinaryOpNode(
                 new VariableNode("y"), "*", new NumberNode(2)
         );
         BinaryOpNode outer = new BinaryOpNode(
                 new VariableNode("x"), "+", inner
         );
+
         assertEquals(16.0, outer.evaluate(env));
     }
 
     @Test
     void nested_deeplyNested() {
-        // (2 + 3) * (4 - 1) = 5 * 3 = 15
-        BinaryOpNode left  = new BinaryOpNode(
+        BinaryOpNode left = new BinaryOpNode(
                 new NumberNode(2), "+", new NumberNode(3)
         );
         BinaryOpNode right = new BinaryOpNode(
                 new NumberNode(4), "-", new NumberNode(1)
         );
         BinaryOpNode outer = new BinaryOpNode(left, "*", right);
+
         assertEquals(15.0, outer.evaluate(env));
     }
 }

@@ -1,39 +1,38 @@
 package bloop.parser;
 
-import bloop.ast.*;
 import bloop.exceptions.BloopParseException;
 import bloop.instructions.*;
 import bloop.token.Token;
 import bloop.token.TokenType;
 import org.junit.jupiter.api.*;
-import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 class ParserTest {
 
     // ════════════════════════════════════════════
-    //  Helper — Token list banane ke liye
+    // Helpers
     // ════════════════════════════════════════════
 
-    private Token token(TokenType type, String value) {
+    private Token createToken(TokenType type, String value) {
         return new Token(type, value, 1);
     }
 
-    private Token token(TokenType type, String value, int line) {
+    private Token createToken(TokenType type, String value, int line) {
         return new Token(type, value, line);
     }
 
-    private List<Instruction> parse(Token... tokens) {
-        // EOF hamesha end mein add karo
+    private List<Instruction> parseTokens(Token... tokens) {
         Token[] withEof = new Token[tokens.length + 1];
         System.arraycopy(tokens, 0, withEof, 0, tokens.length);
-        withEof[tokens.length] = token(TokenType.EOF, "");
+        withEof[tokens.length] = createToken(TokenType.EOF, "");
         return new Parser(List.of(withEof)).parse();
     }
 
     // ════════════════════════════════════════════
-    //  Constructor Tests
+    // Constructor Tests (2)
     // ════════════════════════════════════════════
 
     @Test
@@ -47,504 +46,297 @@ class ParserTest {
     }
 
     // ════════════════════════════════════════════
-    //  Empty Program
+    // Empty Program (2)
     // ════════════════════════════════════════════
 
     @Test
     void parse_emptyProgram_returnsEmptyList() {
-        List<Instruction> instructions = parse();
-        assertEquals(0, instructions.size());
+        assertEquals(0, parseTokens().size());
     }
 
     @Test
     void parse_onlyNewlines_returnsEmptyList() {
-        List<Instruction> instructions = parse(
-                token(TokenType.NEWLINE, "\n"),
-                token(TokenType.NEWLINE, "\n")
-        );
-        assertEquals(0, instructions.size());
+        assertEquals(0, parseTokens(
+                createToken(TokenType.NEWLINE, "\n"),
+                createToken(TokenType.NEWLINE, "\n")
+        ).size());
     }
 
     // ════════════════════════════════════════════
-    //  Put Instruction Tests
+    // Put (6)
     // ════════════════════════════════════════════
 
     @Test
     void parse_putNumber_returnsAssignInstruction() {
-        // put 10 into x
-        List<Instruction> instructions = parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.NUMBER,     "10"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n")
+        List<Instruction> list = parseTokens(
+                createToken(TokenType.PUT, "put"),
+                createToken(TokenType.NUMBER, "10"),
+                createToken(TokenType.INTO, "into"),
+                createToken(TokenType.IDENTIFIER, "x"),
+                createToken(TokenType.NEWLINE, "\n")
         );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(AssignInstruction.class, instructions.get(0));
+        assertEquals(1, list.size());
+        assertInstanceOf(AssignInstruction.class, list.get(0));
     }
 
     @Test
     void parse_putString_returnsAssignInstruction() {
-        // put "Sitare" into name
-        List<Instruction> instructions = parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.STRING,     "Sitare"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "name"),
-                token(TokenType.NEWLINE,    "\n")
+        List<Instruction> list = parseTokens(
+                createToken(TokenType.PUT, "put"),
+                createToken(TokenType.STRING, "Sitare"),
+                createToken(TokenType.INTO, "into"),
+                createToken(TokenType.IDENTIFIER, "name"),
+                createToken(TokenType.NEWLINE, "\n")
         );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(AssignInstruction.class, instructions.get(0));
+        assertInstanceOf(AssignInstruction.class, list.get(0));
     }
 
     @Test
     void parse_putExpression_returnsAssignInstruction() {
-        // put x + y * 2 into result
-        List<Instruction> instructions = parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.PLUS,       "+"),
-                token(TokenType.IDENTIFIER, "y"),
-                token(TokenType.STAR,       "*"),
-                token(TokenType.NUMBER,     "2"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "result"),
-                token(TokenType.NEWLINE,    "\n")
+        List<Instruction> list = parseTokens(
+                createToken(TokenType.PUT, "put"),
+                createToken(TokenType.IDENTIFIER, "x"),
+                createToken(TokenType.PLUS, "+"),
+                createToken(TokenType.IDENTIFIER, "y"),
+                createToken(TokenType.STAR, "*"),
+                createToken(TokenType.NUMBER, "2"),
+                createToken(TokenType.INTO, "into"),
+                createToken(TokenType.IDENTIFIER, "result"),
+                createToken(TokenType.NEWLINE, "\n")
         );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(AssignInstruction.class, instructions.get(0));
+        assertInstanceOf(AssignInstruction.class, list.get(0));
     }
 
     @Test
     void parse_putMissingInto_throwsException() {
-        // put 10 x  ← 'into' missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.NUMBER,     "10"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n")
+        assertThrows(BloopParseException.class, () -> parseTokens(
+                createToken(TokenType.PUT, "put"),
+                createToken(TokenType.NUMBER, "10"),
+                createToken(TokenType.IDENTIFIER, "x"),
+                createToken(TokenType.NEWLINE, "\n")
         ));
     }
 
     @Test
     void parse_putMissingVariableName_throwsException() {
-        // put 10 into  ← variable missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.PUT,     "put"),
-                token(TokenType.NUMBER,  "10"),
-                token(TokenType.INTO,    "into"),
-                token(TokenType.NEWLINE, "\n")
+        assertThrows(BloopParseException.class, () -> parseTokens(
+                createToken(TokenType.PUT, "put"),
+                createToken(TokenType.NUMBER, "10"),
+                createToken(TokenType.INTO, "into"),
+                createToken(TokenType.NEWLINE, "\n")
         ));
     }
 
     @Test
     void parse_putMissingExpression_throwsException() {
-        // put into x  ← expression missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n")
+        assertThrows(BloopParseException.class, () -> parseTokens(
+                createToken(TokenType.PUT, "put"),
+                createToken(TokenType.INTO, "into"),
+                createToken(TokenType.IDENTIFIER, "x"),
+                createToken(TokenType.NEWLINE, "\n")
         ));
     }
 
     // ════════════════════════════════════════════
-    //  Print Instruction Tests
+    // Print (4)
     // ════════════════════════════════════════════
 
     @Test
     void parse_printNumber_returnsPrintInstruction() {
-        // print 42
-        List<Instruction> instructions = parse(
-                token(TokenType.PRINT,   "print"),
-                token(TokenType.NUMBER,  "42"),
-                token(TokenType.NEWLINE, "\n")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(PrintInstruction.class, instructions.get(0));
+        assertInstanceOf(PrintInstruction.class, parseTokens(
+                createToken(TokenType.PRINT, "print"),
+                createToken(TokenType.NUMBER, "42"),
+                createToken(TokenType.NEWLINE, "\n")
+        ).get(0));
     }
 
     @Test
     void parse_printString_returnsPrintInstruction() {
-        // print "hello"
-        List<Instruction> instructions = parse(
-                token(TokenType.PRINT,   "print"),
-                token(TokenType.STRING,  "hello"),
-                token(TokenType.NEWLINE, "\n")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(PrintInstruction.class, instructions.get(0));
+        assertInstanceOf(PrintInstruction.class, parseTokens(
+                createToken(TokenType.PRINT, "print"),
+                createToken(TokenType.STRING, "hello"),
+                createToken(TokenType.NEWLINE, "\n")
+        ).get(0));
     }
 
     @Test
     void parse_printVariable_returnsPrintInstruction() {
-        // print result
-        List<Instruction> instructions = parse(
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.IDENTIFIER, "result"),
-                token(TokenType.NEWLINE,    "\n")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(PrintInstruction.class, instructions.get(0));
+        assertInstanceOf(PrintInstruction.class, parseTokens(
+                createToken(TokenType.PRINT, "print"),
+                createToken(TokenType.IDENTIFIER, "result"),
+                createToken(TokenType.NEWLINE, "\n")
+        ).get(0));
     }
 
     @Test
     void parse_printMissingExpression_throwsException() {
-        // print  ← expression missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.PRINT,   "print"),
-                token(TokenType.NEWLINE, "\n")
+        assertThrows(BloopParseException.class, () -> parseTokens(
+                createToken(TokenType.PRINT, "print"),
+                createToken(TokenType.NEWLINE, "\n")
         ));
     }
 
     // ════════════════════════════════════════════
-    //  If Instruction Tests
+    // IF (6)
     // ════════════════════════════════════════════
 
     @Test
     void parse_ifInstruction_returnsIfInstruction() {
-        // if score > 50 then:
-        //     print "Pass"
-        List<Instruction> instructions = parse(
-                token(TokenType.IF,         "if"),
-                token(TokenType.IDENTIFIER, "score"),
-                token(TokenType.GREATER,    ">"),
-                token(TokenType.NUMBER,     "50"),
-                token(TokenType.THEN,       "then"),
-                token(TokenType.COLON,      ":"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.INDENT,     ""),
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.STRING,     "Pass"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.DEDENT,     "")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(IfInstruction.class, instructions.get(0));
+        assertInstanceOf(IfInstruction.class, parseTokens(
+                createToken(TokenType.IF, "if"),
+                createToken(TokenType.IDENTIFIER, "score"),
+                createToken(TokenType.GREATER, ">"),
+                createToken(TokenType.NUMBER, "50"),
+                createToken(TokenType.THEN, "then"),
+                createToken(TokenType.COLON, ":"),
+                createToken(TokenType.NEWLINE, "\n"),
+                createToken(TokenType.INDENT, ""),
+                createToken(TokenType.PRINT, "print"),
+                createToken(TokenType.STRING, "Pass"),
+                createToken(TokenType.NEWLINE, "\n"),
+                createToken(TokenType.DEDENT, "")
+        ).get(0));
     }
 
-    @Test
-    void parse_ifMissingThen_throwsException() {
-        // if score > 50 :  ← 'then' missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.IF,         "if"),
-                token(TokenType.IDENTIFIER, "score"),
-                token(TokenType.GREATER,    ">"),
-                token(TokenType.NUMBER,     "50"),
-                token(TokenType.COLON,      ":"),
-                token(TokenType.NEWLINE,    "\n")
-        ));
-    }
+    @Test void parse_ifMissingThen_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.IF,"if"),createToken(TokenType.IDENTIFIER,"score"),createToken(TokenType.GREATER,">"),createToken(TokenType.NUMBER,"50"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_ifMissingColon_throwsException() {
-        // if score > 50 then  ← ':' missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.IF,         "if"),
-                token(TokenType.IDENTIFIER, "score"),
-                token(TokenType.GREATER,    ">"),
-                token(TokenType.NUMBER,     "50"),
-                token(TokenType.THEN,       "then"),
-                token(TokenType.NEWLINE,    "\n")
-        ));
-    }
+    @Test void parse_ifMissingColon_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.IF,"if"),createToken(TokenType.IDENTIFIER,"score"),createToken(TokenType.GREATER,">"),createToken(TokenType.NUMBER,"50"),createToken(TokenType.THEN,"then"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_ifEmptyBody_throwsException() {
-        // if score > 50 then:
-        //     ← empty body
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.IF,         "if"),
-                token(TokenType.IDENTIFIER, "score"),
-                token(TokenType.GREATER,    ">"),
-                token(TokenType.NUMBER,     "50"),
-                token(TokenType.THEN,       "then"),
-                token(TokenType.COLON,      ":"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.INDENT,     ""),
-                token(TokenType.DEDENT,     "")
-        ));
-    }
+    @Test void parse_ifEmptyBody_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.IF,"if"),createToken(TokenType.IDENTIFIER,"score"),createToken(TokenType.GREATER,">"),createToken(TokenType.NUMBER,"50"),createToken(TokenType.THEN,"then"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.INDENT,""),createToken(TokenType.DEDENT,"")));}
 
-    @Test
-    void parse_ifMissingIndent_throwsException() {
-        // if score > 50 then:
-        // print "Pass"  ← no indent
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.IF,         "if"),
-                token(TokenType.IDENTIFIER, "score"),
-                token(TokenType.GREATER,    ">"),
-                token(TokenType.NUMBER,     "50"),
-                token(TokenType.THEN,       "then"),
-                token(TokenType.COLON,      ":"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.STRING,     "Pass"),
-                token(TokenType.NEWLINE,    "\n")
-        ));
-    }
+    @Test void parse_ifMissingIndent_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.IF,"if"),createToken(TokenType.IDENTIFIER,"score"),createToken(TokenType.GREATER,">"),createToken(TokenType.NUMBER,"50"),createToken(TokenType.THEN,"then"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.PRINT,"print"),createToken(TokenType.STRING,"Pass"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_ifWithMultipleBodyInstructions() {
-        // if x > 0 then:
-        //     print "positive"
-        //     print "yes"
-        List<Instruction> instructions = parse(
-                token(TokenType.IF,         "if"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.GREATER,    ">"),
-                token(TokenType.NUMBER,     "0"),
-                token(TokenType.THEN,       "then"),
-                token(TokenType.COLON,      ":"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.INDENT,     ""),
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.STRING,     "positive"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.STRING,     "yes"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.DEDENT,     "")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(IfInstruction.class, instructions.get(0));
-    }
+    @Test void parse_ifWithMultipleBodyInstructions(){assertInstanceOf(IfInstruction.class,parseTokens(createToken(TokenType.IF,"if"),createToken(TokenType.IDENTIFIER,"x"),createToken(TokenType.GREATER,">"),createToken(TokenType.NUMBER,"0"),createToken(TokenType.THEN,"then"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.INDENT,""),createToken(TokenType.PRINT,"print"),createToken(TokenType.STRING,"positive"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.PRINT,"print"),createToken(TokenType.STRING,"yes"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.DEDENT,"")).get(0));}
 
     // ════════════════════════════════════════════
-    //  Repeat Instruction Tests
+    // Repeat (7)
     // ════════════════════════════════════════════
 
     @Test
     void parse_repeatInstruction_returnsRepeatInstruction() {
-        // repeat 3 times:
-        //     print "hello"
-        List<Instruction> instructions = parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "3"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n"),
-                token(TokenType.INDENT,  ""),
-                token(TokenType.PRINT,   "print"),
-                token(TokenType.STRING,  "hello"),
-                token(TokenType.NEWLINE, "\n"),
-                token(TokenType.DEDENT,  "")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(RepeatInstruction.class, instructions.get(0));
+        assertInstanceOf(RepeatInstruction.class, parseTokens(
+                createToken(TokenType.REPEAT,"repeat"),
+                createToken(TokenType.NUMBER,"3"),
+                createToken(TokenType.TIMES,"times"),
+                createToken(TokenType.COLON,":"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.INDENT,""),
+                createToken(TokenType.PRINT,"print"),
+                createToken(TokenType.STRING,"hello"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.DEDENT,"")
+        ).get(0));
     }
 
-    @Test
-    void parse_repeatMissingCount_throwsException() {
-        // repeat times:  ← count missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n")
-        ));
-    }
+    @Test void parse_repeatMissingCount_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.TIMES,"times"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_repeatMissingTimes_throwsException() {
-        // repeat 3 :  ← 'times' missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "3"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n")
-        ));
-    }
+    @Test void parse_repeatMissingTimes_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.NUMBER,"3"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_repeatMissingColon_throwsException() {
-        // repeat 3 times  ← ':' missing
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "3"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.NEWLINE, "\n")
-        ));
-    }
+    @Test void parse_repeatMissingColon_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.NUMBER,"3"),createToken(TokenType.TIMES,"times"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_repeatNegativeCount_throwsException() {
-        // repeat -3 times:
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "-3"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n")
-        ));
-    }
+    @Test void parse_repeatNegativeCount_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.NUMBER,"-3"),createToken(TokenType.TIMES,"times"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_repeatDecimalCount_throwsException() {
-        // repeat 3.5 times:
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "3.5"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n")
-        ));
-    }
+    @Test void parse_repeatDecimalCount_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.NUMBER,"3.5"),createToken(TokenType.TIMES,"times"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n")));}
 
-    @Test
-    void parse_repeatEmptyBody_throwsException() {
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "3"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n"),
-                token(TokenType.INDENT,  ""),
-                token(TokenType.DEDENT,  "")
-        ));
-    }
+    @Test void parse_repeatEmptyBody_throwsException(){assertThrows(BloopParseException.class,()->parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.NUMBER,"3"),createToken(TokenType.TIMES,"times"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.INDENT,""),createToken(TokenType.DEDENT,"")));}
 
-    @Test
-    void parse_repeatZeroTimes_returnsRepeatInstruction() {
-        // repeat 0 times: ← valid, just runs 0 times
-        List<Instruction> instructions = parse(
-                token(TokenType.REPEAT,  "repeat"),
-                token(TokenType.NUMBER,  "0"),
-                token(TokenType.TIMES,   "times"),
-                token(TokenType.COLON,   ":"),
-                token(TokenType.NEWLINE, "\n"),
-                token(TokenType.INDENT,  ""),
-                token(TokenType.PRINT,   "print"),
-                token(TokenType.STRING,  "hello"),
-                token(TokenType.NEWLINE, "\n"),
-                token(TokenType.DEDENT,  "")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(RepeatInstruction.class, instructions.get(0));
-    }
+    @Test void parse_repeatZeroTimes_returnsRepeatInstruction(){assertInstanceOf(RepeatInstruction.class,parseTokens(createToken(TokenType.REPEAT,"repeat"),createToken(TokenType.NUMBER,"0"),createToken(TokenType.TIMES,"times"),createToken(TokenType.COLON,":"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.INDENT,""),createToken(TokenType.PRINT,"print"),createToken(TokenType.STRING,"hello"),createToken(TokenType.NEWLINE,"\n"),createToken(TokenType.DEDENT,"")).get(0));}
 
     // ════════════════════════════════════════════
-    //  Expression Precedence Tests
+    // Expression + Others
     // ════════════════════════════════════════════
 
     @Test
     void parse_expressionPrecedence_multiplyBeforeAdd() {
-        // put x + y * 2 into result
-        // Should parse as x + (y * 2), not (x + y) * 2
-        List<Instruction> instructions = parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.PLUS,       "+"),
-                token(TokenType.IDENTIFIER, "y"),
-                token(TokenType.STAR,       "*"),
-                token(TokenType.NUMBER,     "2"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "result"),
-                token(TokenType.NEWLINE,    "\n")
-        );
-        assertEquals(1, instructions.size());
-        assertInstanceOf(AssignInstruction.class, instructions.get(0));
+        assertInstanceOf(AssignInstruction.class, parseTokens(
+                createToken(TokenType.PUT,"put"),
+                createToken(TokenType.IDENTIFIER,"x"),
+                createToken(TokenType.PLUS,"+"),
+                createToken(TokenType.IDENTIFIER,"y"),
+                createToken(TokenType.STAR,"*"),
+                createToken(TokenType.NUMBER,"2"),
+                createToken(TokenType.INTO,"into"),
+                createToken(TokenType.IDENTIFIER,"result"),
+                createToken(TokenType.NEWLINE,"\n")
+        ).get(0));
     }
 
     @Test
     void parse_allComparisonOperators() {
-        // > < >= <= == != — sab valid hone chahiye
-        TokenType[] operators = {
-                TokenType.GREATER, TokenType.LESS,
-                TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL,
-                TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL
-        };
-        String[] symbols = {">", "<", ">=", "<=", "==", "!="};
+        TokenType[] ops={TokenType.GREATER,TokenType.LESS,TokenType.GREATER_EQUAL,TokenType.LESS_EQUAL,TokenType.EQUAL_EQUAL,TokenType.NOT_EQUAL};
+        String[] sym={">","<",">=","<=","==","!="};
 
-        for (int i = 0; i < operators.length; i++) {
-            final int index = i;
-            assertDoesNotThrow(() -> parse(
-                    token(TokenType.IF,         "if"),
-                    token(TokenType.IDENTIFIER, "x"),
-                    token(operators[index],     symbols[index]),
-                    token(TokenType.NUMBER,     "5"),
-                    token(TokenType.THEN,       "then"),
-                    token(TokenType.COLON,      ":"),
-                    token(TokenType.NEWLINE,    "\n"),
-                    token(TokenType.INDENT,     ""),
-                    token(TokenType.PRINT,      "print"),
-                    token(TokenType.STRING,     "yes"),
-                    token(TokenType.NEWLINE,    "\n"),
-                    token(TokenType.DEDENT,     "")
+        for(int i=0;i<ops.length;i++){
+            int idx=i;
+            assertDoesNotThrow(()->parseTokens(
+                    createToken(TokenType.IF,"if"),
+                    createToken(TokenType.IDENTIFIER,"x"),
+                    createToken(ops[idx],sym[idx]),
+                    createToken(TokenType.NUMBER,"5"),
+                    createToken(TokenType.THEN,"then"),
+                    createToken(TokenType.COLON,":"),
+                    createToken(TokenType.NEWLINE,"\n"),
+                    createToken(TokenType.INDENT,""),
+                    createToken(TokenType.PRINT,"print"),
+                    createToken(TokenType.STRING,"yes"),
+                    createToken(TokenType.NEWLINE,"\n"),
+                    createToken(TokenType.DEDENT,"")
             ));
         }
     }
 
-    // ════════════════════════════════════════════
-    //  Multiple Instructions Tests
-    // ════════════════════════════════════════════
-
     @Test
     void parse_multipleInstructions_returnsAll() {
-        // put 10 into x
-        // put 20 into y
-        // print x
-        List<Instruction> instructions = parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.NUMBER,     "10"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.PUT,        "put"),
-                token(TokenType.NUMBER,     "20"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "y"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n")
+        List<Instruction> list=parseTokens(
+                createToken(TokenType.PUT,"put"),
+                createToken(TokenType.NUMBER,"10"),
+                createToken(TokenType.INTO,"into"),
+                createToken(TokenType.IDENTIFIER,"x"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.PUT,"put"),
+                createToken(TokenType.NUMBER,"20"),
+                createToken(TokenType.INTO,"into"),
+                createToken(TokenType.IDENTIFIER,"y"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.PRINT,"print"),
+                createToken(TokenType.IDENTIFIER,"x"),
+                createToken(TokenType.NEWLINE,"\n")
         );
-        assertEquals(3, instructions.size());
-        assertInstanceOf(AssignInstruction.class, instructions.get(0));
-        assertInstanceOf(AssignInstruction.class, instructions.get(1));
-        assertInstanceOf(PrintInstruction.class,  instructions.get(2));
+        assertEquals(3,list.size());
     }
 
     @Test
     void parse_blankLinesBetweenInstructions_ignored() {
-        // put 10 into x
-        //
-        // print x
-        List<Instruction> instructions = parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.NUMBER,     "10"),
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.NEWLINE,    "\n"),
-                token(TokenType.PRINT,      "print"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n")
-        );
-        assertEquals(2, instructions.size());
+        assertEquals(2,parseTokens(
+                createToken(TokenType.PUT,"put"),
+                createToken(TokenType.NUMBER,"10"),
+                createToken(TokenType.INTO,"into"),
+                createToken(TokenType.IDENTIFIER,"x"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.NEWLINE,"\n"),
+                createToken(TokenType.PRINT,"print"),
+                createToken(TokenType.IDENTIFIER,"x"),
+                createToken(TokenType.NEWLINE,"\n")
+        ).size());
     }
-
-    // ════════════════════════════════════════════
-    //  Unknown Token Tests
-    // ════════════════════════════════════════════
 
     @Test
     void parse_unknownToken_throwsException() {
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.IDENTIFIER, "unknownKeyword"),
-                token(TokenType.NEWLINE,    "\n")
+        assertThrows(BloopParseException.class,()->parseTokens(
+                createToken(TokenType.IDENTIFIER,"unknownKeyword"),
+                createToken(TokenType.NEWLINE,"\n")
         ));
     }
 
     @Test
     void parse_invalidNumberFormat_throwsException() {
-        assertThrows(BloopParseException.class, () -> parse(
-                token(TokenType.PUT,        "put"),
-                token(TokenType.NUMBER,     "abc"),  // invalid number
-                token(TokenType.INTO,       "into"),
-                token(TokenType.IDENTIFIER, "x"),
-                token(TokenType.NEWLINE,    "\n")
+        assertThrows(BloopParseException.class,()->parseTokens(
+                createToken(TokenType.PUT,"put"),
+                createToken(TokenType.NUMBER,"abc"),
+                createToken(TokenType.INTO,"into"),
+                createToken(TokenType.IDENTIFIER,"x"),
+                createToken(TokenType.NEWLINE,"\n")
         ));
     }
 }

@@ -10,7 +10,7 @@ public class Tokenizer {
     private int line = 1;
     private final List<Token> tokens = new ArrayList<>();
 
-    // 🔥 indentation tracking
+ 
     private Stack<Integer> indentStack = new Stack<>();
 
     public Tokenizer(String input) {
@@ -33,7 +33,7 @@ public class Tokenizer {
                 line++;
                 pos++;
 
-                handleIndentation(); // 🔥 important
+                handleIndentation(); 
             }
 
             // Numbers
@@ -58,7 +58,6 @@ public class Tokenizer {
             }
         }
 
-        // 🔥 close remaining indents
         while (indentStack.size() > 1) {
             indentStack.pop();
             tokens.add(new Token(TokenType.DEDENT, "", line));
@@ -68,7 +67,7 @@ public class Tokenizer {
         return tokens;
     }
 
-    // ───────────── NUMBER ─────────────
+    // number
     private void tokenizeNumber() {
         int start = pos;
 
@@ -80,7 +79,7 @@ public class Tokenizer {
         tokens.add(new Token(TokenType.NUMBER, number, line));
     }
 
-    // ───────────── WORD ─────────────
+    // word
     private void tokenizeWord() {
         int start = pos;
 
@@ -103,7 +102,7 @@ public class Tokenizer {
         }
     }
 
-    // ───────────── STRING ─────────────
+    
     private void tokenizeString() {
         pos++; // skip opening "
 
@@ -123,7 +122,7 @@ public class Tokenizer {
         tokens.add(new Token(TokenType.STRING, value, line));
     }
 
-    // ───────────── OPERATORS ─────────────
+    // operators
     private void tokenizeOperator(char current) {
 
         switch (current) {
@@ -190,7 +189,7 @@ public class Tokenizer {
         }
     }
 
-    // ───────────── INDENTATION ─────────────
+    // indentation
     private void handleIndentation() {
         int spaces = 0;
 

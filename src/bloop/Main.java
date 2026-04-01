@@ -32,7 +32,7 @@ public class Main {
         }
     }
 
-    // ─────────────── Helper ───────────────
+    // helper
 
     private static void exit(String message) {
         System.err.println(message);

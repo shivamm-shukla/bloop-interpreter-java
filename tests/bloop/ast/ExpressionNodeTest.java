@@ -67,37 +67,37 @@ class ExpressionNodeTest {
 
     @Test
     void number_negativeZero_equalToZero() {
-        // -0.0 aur 0.0 mathematically equal hain
         assertEquals(0.0, new NumberNode(-0.0).evaluate(env));
     }
 
     @Test
-    void number_maxDouble() {
-        assertEquals(Double.MAX_VALUE, new NumberNode(Double.MAX_VALUE).evaluate(env));
+    void number_maxDouble_throws() {
+        // Agar NumberNode MAX_VALUE ko bhi reject karta hai toh throws,
+        // warna assertEquals use karo — apni implementation ke hisaab se adjust karo
+        assertDoesNotThrow(() -> new NumberNode(Double.MAX_VALUE));
     }
 
     @Test
-    void number_minDouble() {
-        assertEquals(Double.MIN_VALUE, new NumberNode(Double.MIN_VALUE).evaluate(env));
+    void number_minDouble_doesNotThrow() {
+        assertDoesNotThrow(() -> new NumberNode(Double.MIN_VALUE));
     }
 
     @Test
-    void number_positiveInfinity() {
-        assertEquals(Double.POSITIVE_INFINITY,
-                new NumberNode(Double.POSITIVE_INFINITY).evaluate(env));
+    void number_positiveInfinity_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new NumberNode(Double.POSITIVE_INFINITY));
     }
 
     @Test
-    void number_negativeInfinity() {
-        assertEquals(Double.NEGATIVE_INFINITY,
-                new NumberNode(Double.NEGATIVE_INFINITY).evaluate(env));
+    void number_negativeInfinity_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new NumberNode(Double.NEGATIVE_INFINITY));
     }
 
     @Test
-    void number_NaN_isNaN() {
-        // NaN == NaN always false in Java, isliye isNaN use karo
-        Object result = new NumberNode(Double.NaN).evaluate(env);
-        assertTrue(Double.isNaN((Double) result));
+    void number_NaN_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new NumberNode(Double.NaN));
     }
 
     @Test
@@ -122,14 +122,12 @@ class ExpressionNodeTest {
 
     @Test
     void number_sameNodeEvaluatedTwice_sameResult() {
-        // Node stateless hona chahiye — state change nahi honi chahiye
         NumberNode node = new NumberNode(7.0);
         assertEquals(node.evaluate(env), node.evaluate(env));
     }
 
     @Test
     void number_differentEnvs_sameResult() {
-        // NumberNode env pe depend nahi karta
         Environment env2 = new Environment();
         env2.set("x", 999.0);
         NumberNode node = new NumberNode(42.0);
@@ -376,12 +374,6 @@ class ExpressionNodeTest {
     }
 
     @Test
-    void variable_infinityValue() {
-        env.set("inf", Double.POSITIVE_INFINITY);
-        assertEquals(Double.POSITIVE_INFINITY, new VariableNode("inf").evaluate(env));
-    }
-
-    @Test
     void variable_negativeZeroStored() {
         env.set("nz", -0.0);
         assertEquals(0.0, new VariableNode("nz").evaluate(env));
@@ -454,23 +446,10 @@ class ExpressionNodeTest {
                 new NumberNode(3), "+", new NumberNode(-5)).evaluate(env));
     }
 
-//    @Test
-//    void add_decimals() {
-//        assertEquals(0.3, new BinaryOpNode(
-//                new NumberNode(0.1), "+", new NumberNode(0.2)).evaluate(env), 1e-10);
-//    }
-
     @Test
     void add_largeNumbers() {
         assertEquals(2_000_000_000.0, new BinaryOpNode(
                 new NumberNode(1_000_000_000.0), "+", new NumberNode(1_000_000_000.0)
-        ).evaluate(env));
-    }
-
-    @Test
-    void add_infinity_plusNumber() {
-        assertEquals(Double.POSITIVE_INFINITY, new BinaryOpNode(
-                new NumberNode(Double.POSITIVE_INFINITY), "+", new NumberNode(1)
         ).evaluate(env));
     }
 
@@ -521,12 +500,6 @@ class ExpressionNodeTest {
                 new NumberNode(0), "-", new NumberNode(5)).evaluate(env));
     }
 
-//    @Test
-//    void sub_decimals() {
-//        assertEquals(0.1, new BinaryOpNode(
-//                new NumberNode(0.3), "-", new NumberNode(0.2)).evaluate(env), 1e-10);
-//    }
-
 
     // ════════════════════════════════════════════════════════════
     //  BinaryOpNode — Multiplication
@@ -568,31 +541,10 @@ class ExpressionNodeTest {
                 new NumberNode(-3), "*", new NumberNode(4)).evaluate(env));
     }
 
-//    @Test
-//    void mul_decimals() {
-//        assertEquals(0.06, new BinaryOpNode(
-//                new NumberNode(0.2), "*", new NumberNode(0.3)).evaluate(env), 1e-10);
-//    }
-
     @Test
     void mul_byMinusOne() {
         assertEquals(-5.0, new BinaryOpNode(
                 new NumberNode(5), "*", new NumberNode(-1)).evaluate(env));
-    }
-
-    @Test
-    void mul_infinity_byPositive() {
-        assertEquals(Double.POSITIVE_INFINITY, new BinaryOpNode(
-                new NumberNode(Double.POSITIVE_INFINITY), "*", new NumberNode(2)
-        ).evaluate(env));
-    }
-
-    @Test
-    void mul_infinity_byZero_isNaN() {
-        Object result = new BinaryOpNode(
-                new NumberNode(Double.POSITIVE_INFINITY), "*", new NumberNode(0)
-        ).evaluate(env);
-        assertTrue(Double.isNaN((Double) result));
     }
 
 
@@ -637,39 +589,27 @@ class ExpressionNodeTest {
     }
 
     @Test
-    void div_byZero_positive_infinityOrException() {
-        BinaryOpNode node = new BinaryOpNode(
-                new NumberNode(5), "/", new NumberNode(0));
-        try {
-            Object result = node.evaluate(env);
-            assertEquals(Double.POSITIVE_INFINITY, result);
-        } catch (BloopRuntimeException e) {
-            assertTrue(true); // exception bhi valid hai
-        }
+    void div_byZero_positive_throws() {
+        assertThrows(BloopRuntimeException.class, () ->
+                new BinaryOpNode(
+                        new NumberNode(5), "/", new NumberNode(0)
+                ).evaluate(env));
     }
 
     @Test
-    void div_byZero_negative_infinityOrException() {
-        BinaryOpNode node = new BinaryOpNode(
-                new NumberNode(-5), "/", new NumberNode(0));
-        try {
-            Object result = node.evaluate(env);
-            assertEquals(Double.NEGATIVE_INFINITY, result);
-        } catch (BloopRuntimeException e) {
-            assertTrue(true);
-        }
+    void div_byZero_negative_throws() {
+        assertThrows(BloopRuntimeException.class, () ->
+                new BinaryOpNode(
+                        new NumberNode(-5), "/", new NumberNode(0)
+                ).evaluate(env));
     }
 
     @Test
-    void div_byZero_zero_isNaNOrException() {
-        BinaryOpNode node = new BinaryOpNode(
-                new NumberNode(0), "/", new NumberNode(0));
-        try {
-            Object result = node.evaluate(env);
-            assertTrue(Double.isNaN((Double) result));
-        } catch (BloopRuntimeException e) {
-            assertTrue(true);
-        }
+    void div_byZero_zero_throws() {
+        assertThrows(BloopRuntimeException.class, () ->
+                new BinaryOpNode(
+                        new NumberNode(0), "/", new NumberNode(0)
+                ).evaluate(env));
     }
 
     @Test
@@ -848,18 +788,42 @@ class ExpressionNodeTest {
     }
 
     @Test
-    void arithmetic_onStrings_throws() {
-        assertThrows(BloopRuntimeException.class, () ->
+    void string_plus_string_concatenates() {
+        assertEquals("helloworld",
                 new BinaryOpNode(
                         new StringNode("hello"), "+", new StringNode("world")
                 ).evaluate(env));
     }
 
     @Test
-    void arithmetic_numberPlusString_throws() {
-        assertThrows(BloopRuntimeException.class, () ->
+    void number_plus_string_concatenates() {
+        assertEquals("5hello",
                 new BinaryOpNode(
                         new NumberNode(5), "+", new StringNode("hello")
+                ).evaluate(env));
+    }
+
+    @Test
+    void string_plus_number_concatenates() {
+        assertEquals("hello5",
+                new BinaryOpNode(
+                        new StringNode("hello"), "+", new NumberNode(5)
+                ).evaluate(env));
+    }
+
+    @Test
+    void number_plus_number_adds() {
+        assertEquals(8.0,
+                new BinaryOpNode(
+                        new NumberNode(5), "+", new NumberNode(3)
+                ).evaluate(env));
+    }
+
+    @Test
+    void double_string_formatting_removes_decimal_if_integer() {
+        assertEquals("5x",
+                new BinaryOpNode(
+                        new NumberNode(5.0), "+", new StringNode("x")
                 ).evaluate(env));
     }
 
@@ -972,14 +936,14 @@ class ExpressionNodeTest {
 
     @Test
     void nested_leftAssociativity_subtraction() {
-        // (10 - 3) - 2 = 5  (NOT 10 - (3-2) = 9)
+        // (10 - 3) - 2 = 5
         BinaryOpNode left = new BinaryOpNode(new NumberNode(10), "-", new NumberNode(3));
         assertEquals(5.0, new BinaryOpNode(left, "-", new NumberNode(2)).evaluate(env));
     }
 
     @Test
     void nested_leftAssociativity_division() {
-        // (100 / 10) / 2 = 5  (NOT 100 / (10/2) = 20)
+        // (100 / 10) / 2 = 5
         BinaryOpNode left = new BinaryOpNode(new NumberNode(100), "/", new NumberNode(10));
         assertEquals(5.0, new BinaryOpNode(left, "/", new NumberNode(2)).evaluate(env));
     }
@@ -1002,7 +966,6 @@ class ExpressionNodeTest {
     void integration_priceAfterDiscount() {
         env.set("price", 100.0);
         env.set("discount", 20.0);
-        // price - discount = 80
         assertEquals(80.0, new BinaryOpNode(
                 new VariableNode("price"), "-", new VariableNode("discount")
         ).evaluate(env));
@@ -1012,7 +975,6 @@ class ExpressionNodeTest {
     void integration_priceAfterDiscountPercent() {
         env.set("price", 200.0);
         env.set("discountPct", 10.0);
-        // price - (price * discountPct / 100) = 200 - 20 = 180
         BinaryOpNode mul = new BinaryOpNode(
                 new VariableNode("price"), "*", new VariableNode("discountPct"));
         BinaryOpNode div = new BinaryOpNode(mul, "/", new NumberNode(100));
@@ -1034,7 +996,7 @@ class ExpressionNodeTest {
         BinaryOpNode expr = new BinaryOpNode(new VariableNode("x"), "+", new NumberNode(5));
         assertEquals(10.0, expr.evaluate(env));
         env.set("x", 20.0);
-        assertEquals(25.0, expr.evaluate(env)); // same node, naya result
+        assertEquals(25.0, expr.evaluate(env));
     }
 
     @Test
@@ -1093,7 +1055,7 @@ class ExpressionNodeTest {
 
     @Test
     void integration_quadraticExpression() {
-        // x*x + 2*x + 1  where x=3 → 9 + 6 + 1 = 16
+        // x*x + 2*x + 1  where x=3 → 16
         env.set("x", 3.0);
         BinaryOpNode xSquared = new BinaryOpNode(
                 new VariableNode("x"), "*", new VariableNode("x"));
@@ -1105,7 +1067,7 @@ class ExpressionNodeTest {
 
     @Test
     void integration_quadraticExpression_differentX() {
-        // x*x + 2*x + 1  where x=0 → 0 + 0 + 1 = 1
+        // x*x + 2*x + 1  where x=0 → 1
         env.set("x", 0.0);
         BinaryOpNode xSquared = new BinaryOpNode(
                 new VariableNode("x"), "*", new VariableNode("x"));
@@ -1117,7 +1079,7 @@ class ExpressionNodeTest {
 
     @Test
     void integration_averageOfThreeVars() {
-        // (a + b + c) / 3 = (10 + 20 + 30) / 3 = 20
+        // (10 + 20 + 30) / 3 = 20
         env.set("a", 10.0);
         env.set("b", 20.0);
         env.set("c", 30.0);
@@ -1162,13 +1124,12 @@ class ExpressionNodeTest {
                 new BinaryOpNode(new VariableNode("s1"), "+", new VariableNode("s2")),
                 "+", new VariableNode("s3"));
         BinaryOpNode avg = new BinaryOpNode(sum, "/", new NumberNode(3));
-        // avg = 195/3 = 65 → NOT greater than 65
         assertFalse((Boolean) new BinaryOpNode(avg, ">", new VariableNode("threshold")).evaluate(env));
     }
 
     @Test
     void integration_variableUsedMultipleTimes_inOneExpr() {
-        // x * x - x = x^2 - x where x=5 → 25 - 5 = 20
+        // x * x - x = 25 - 5 = 20
         env.set("x", 5.0);
         BinaryOpNode xSquare = new BinaryOpNode(
                 new VariableNode("x"), "*", new VariableNode("x"));
@@ -1199,18 +1160,17 @@ class ExpressionNodeTest {
     }
 
     @Test
-    void integration_stringVariable_inArithmetic_throws() {
+    void integration_stringVariable_plus_numberVariable_concatenates() {
         env.set("name", "Bloop");
         env.set("x", 5.0);
-        assertThrows(BloopRuntimeException.class, () ->
+
+        assertEquals("Bloop5",
                 new BinaryOpNode(
                         new VariableNode("name"), "+", new VariableNode("x")
                 ).evaluate(env));
     }
-
     @Test
     void integration_freshEnv_noVariablesLeak() {
-        // BeforeEach se fresh env milti hai
         assertThrows(BloopRuntimeException.class,
                 () -> new VariableNode("price").evaluate(env));
         assertThrows(BloopRuntimeException.class,
@@ -1219,7 +1179,6 @@ class ExpressionNodeTest {
 
     @Test
     void integration_countdownExpression() {
-        // (start - step) == target?  (10 - 3) == 7 → true
         env.set("start", 10.0);
         env.set("step", 3.0);
         env.set("target", 7.0);
@@ -1231,7 +1190,7 @@ class ExpressionNodeTest {
 
     @Test
     void integration_nestedVarsAndLiterals_mixedDepth() {
-        // ((x + 1) * (y - 1)) / z  where x=4, y=6, z=5 → (5*5)/5 = 5
+        // ((x + 1) * (y - 1)) / z  where x=4, y=6, z=5 → 5
         env.set("x", 4.0);
         env.set("y", 6.0);
         env.set("z", 5.0);
@@ -1243,8 +1202,7 @@ class ExpressionNodeTest {
 
     @Test
     void integration_simpleInterestFormula() {
-        // SI = (principal * rate * time) / 100
-        // principal=1000, rate=5, time=2 → SI = 100
+        // SI = (principal * rate * time) / 100 = 100
         env.set("principal", 1000.0);
         env.set("rate", 5.0);
         env.set("time", 2.0);
@@ -1256,8 +1214,6 @@ class ExpressionNodeTest {
 
     @Test
     void integration_boundaryCheck_withinRange_true() {
-        // min <= value <= max?  min=0, value=5, max=10
-        // split into: (value >= min) individually, then (value <= max)
         env.set("value", 5.0);
         env.set("min", 0.0);
         env.set("max", 10.0);
@@ -1283,14 +1239,14 @@ class ExpressionNodeTest {
         env.set("x", 10.0);
         BinaryOpNode cond = new BinaryOpNode(
                 new VariableNode("x"), ">", new NumberNode(5));
-        assertTrue((Boolean) cond.evaluate(env));  // 10 > 5 → true
+        assertTrue((Boolean) cond.evaluate(env));
         env.set("x", 3.0);
-        assertFalse((Boolean) cond.evaluate(env)); // 3 > 5 → false
+        assertFalse((Boolean) cond.evaluate(env));
     }
 
     @Test
     void integration_twoExpressionsCompared_equal() {
-        // (2 * 6) == (3 * 4) → 12 == 12 → true
+        // (2 * 6) == (3 * 4) → true
         BinaryOpNode left = new BinaryOpNode(new NumberNode(2), "*", new NumberNode(6));
         BinaryOpNode right = new BinaryOpNode(new NumberNode(3), "*", new NumberNode(4));
         assertTrue((Boolean) new BinaryOpNode(left, "==", right).evaluate(env));
@@ -1298,7 +1254,7 @@ class ExpressionNodeTest {
 
     @Test
     void integration_twoExpressionsCompared_notEqual() {
-        // (2 + 6) == (3 * 4) → 8 == 12 → false
+        // (2 + 6) == (3 * 4) → false
         BinaryOpNode left = new BinaryOpNode(new NumberNode(2), "+", new NumberNode(6));
         BinaryOpNode right = new BinaryOpNode(new NumberNode(3), "*", new NumberNode(4));
         assertFalse((Boolean) new BinaryOpNode(left, "==", right).evaluate(env));

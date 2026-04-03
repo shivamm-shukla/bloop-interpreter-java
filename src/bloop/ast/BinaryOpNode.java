@@ -67,8 +67,19 @@ public class BinaryOpNode implements Expression {
     }
 
     private boolean isEqual(Object leftVal, Object rightVal) {
-        // FIXED: standard equals() handles Double edge cases perfectly
-        if (leftVal == null) return rightVal == null;
+
+        if (leftVal == null || rightVal == null) {
+            return leftVal == rightVal;
+        }
+
+        // Handle numbers properly
+        if (leftVal instanceof Number && rightVal instanceof Number) {
+            double l = ((Number) leftVal).doubleValue();
+            double r = ((Number) rightVal).doubleValue();
+            return Double.compare(l, r) == 0;
+        }
+
+        // fallback for other types (String, Boolean, etc.)
         return leftVal.equals(rightVal);
     }
 

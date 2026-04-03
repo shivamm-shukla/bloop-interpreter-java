@@ -2,7 +2,7 @@ package bloop.parser;
 
 import bloop.ast.*;
 import bloop.exceptions.BloopParseException;
-import bloop.instructions.*;
+import bloop.instruction.*;
 import bloop.token.Token;
 import bloop.token.TokenType;
 
@@ -102,6 +102,7 @@ public class Parser {
     }
 
     private Instruction parseRepeatInstruction() {
+        // 1. Token aur count yahan declare aur initialize hone zaroori hain
         Token repeatToken = consumeExpected(TokenType.REPEAT, "Expected 'repeat'");
 
         Token numberToken = consumeExpected(TokenType.NUMBER, "Expected a number after 'repeat'");
@@ -110,6 +111,7 @@ public class Parser {
         consumeExpected(TokenType.TIMES, "Expected 'times' after repeat count");
         consumeExpected(TokenType.COLON, "Expected ':' after 'times'");
 
+        // 2. Phir indentation aur body parse hoti hai
         consumeNewlineIfPresent();
 
         List<Instruction> body = parseIndentedBlock();
@@ -118,6 +120,7 @@ public class Parser {
             throw createError(repeatToken, "Expected at least one instruction in 'repeat' body");
         }
 
+        // 3. Ab IDE ko repeatCount mil jayega aur koi error nahi aayega!
         return new RepeatInstruction(repeatCount, body);
     }
 
@@ -144,17 +147,30 @@ public class Parser {
     }
 
 
-    // Expression Parsing
+    // ── Expression Parsing (FIXED PRECEDENCE) ────────────────
 
+    // Layer 1: Comparisons & Equality (Lower precedence)
     private Expression parseExpression() {
-        Expression left = parseTerm();
+        Expression left = parseAddition();
 
         while (matchAndConsume(
-                TokenType.PLUS, TokenType.MINUS,
                 TokenType.GREATER, TokenType.LESS,
                 TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL,
                 TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL
         )) {
+            String operator = lastConsumedToken().getValue();
+            Expression right = parseAddition();
+            left = new BinaryOpNode(left, operator, right);
+        }
+
+        return left;
+    }
+
+    // Layer 2: Addition & Subtraction (Higher precedence than comparisons)
+    private Expression parseAddition() {
+        Expression left = parseTerm();
+
+        while (matchAndConsume(TokenType.PLUS, TokenType.MINUS)) {
             String operator = lastConsumedToken().getValue();
             Expression right = parseTerm();
             left = new BinaryOpNode(left, operator, right);
@@ -163,6 +179,7 @@ public class Parser {
         return left;
     }
 
+    // Layer 3: Multiplication & Division (Highest arithmetic precedence)
     private Expression parseTerm() {
         Expression left = parsePrimary();
 
@@ -175,6 +192,7 @@ public class Parser {
         return left;
     }
 
+    // Layer 4: Base Values
     private Expression parsePrimary() {
         Token token = currentToken();
 
@@ -218,6 +236,12 @@ public class Parser {
             if (value < 0) {
                 throw createError(token,
                         "Repeat count cannot be negative: '" + token.getValue() + "'");
+            }
+
+            // FIXED: Prevent Integer Overflow if user inputs massive repeat count
+            if (value > Integer.MAX_VALUE) {
+                throw createError(token,
+                        "Repeat count is too large to execute: '" + token.getValue() + "'");
             }
 
             return (int) value;
@@ -271,7 +295,11 @@ public class Parser {
         return currentToken().getType() == TokenType.EOF;
     }
 
+    // FIXED: Bounds check to prevent unhandled raw Java Exceptions
     private Token currentToken() {
+        if (currentIndex >= tokens.size()) {
+            return new Token(TokenType.EOF, "EOF", -1); // Safe fallback
+        }
         return tokens.get(currentIndex);
     }
 

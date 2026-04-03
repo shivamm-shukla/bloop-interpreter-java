@@ -50,14 +50,13 @@ public class Parser {
     private Instruction parseInstruction() {
         Token token = currentToken();
 
-        switch (token.getType()) {
-            case PUT:    return parsePutInstruction();
-            case PRINT:  return parsePrintInstruction();
-            case IF:     return parseIfInstruction();
-            case REPEAT: return parseRepeatInstruction();
-            default:
-                throw createError(token, "Unexpected token '" + token.getValue() + "'");
-        }
+        return switch (token.getType()) {
+            case PUT -> parsePutInstruction();
+            case PRINT -> parsePrintInstruction();
+            case IF -> parseIfInstruction();
+            case REPEAT -> parseRepeatInstruction();
+            default -> throw createError(token, "Unexpected token '" + token.getValue() + "'");
+        };
     }
 
     private Instruction parsePutInstruction() {
@@ -152,7 +151,7 @@ public class Parser {
     // Expression Parsing
 
     // Layer 1: Comparisons & Equality (Lowest precedence)
-    // 'if' use kiya hai 'while' ki jagah — chained comparisons blocked
+    // chained comparisons blocked
     private Expression parseExpression() {
         Expression left = parseAddition();
 
@@ -253,7 +252,7 @@ public class Parser {
                         "Repeat count is too large to execute: '" + token.getValue() + "'");
             }
 
-            return (int) value; // safe — upar dono checks ho chuke hain
+            return (int) value;
 
         } catch (NumberFormatException e) {
             // Decimals, floats, garbage

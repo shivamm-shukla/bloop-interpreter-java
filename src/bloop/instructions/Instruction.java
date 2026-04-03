@@ -1,4 +1,4 @@
-package bloop.instruction;
+package bloop.instructions;
 
 import bloop.runtime.Environment;
 

@@ -11,7 +11,7 @@ public class Tokenizer {
     private final List<Token> tokens = new ArrayList<>();
 
  
-    private Stack<Integer> indentStack = new Stack<>();
+    private Deque<Integer> indentStack = new ArrayDeque<>();
 
     public Tokenizer(String input) {
         this.input = input;

@@ -2,7 +2,7 @@ package bloop.parser;
 
 import bloop.ast.*;
 import bloop.exceptions.BloopParseException;
-import bloop.instruction.*;
+import bloop.instructions.*;
 import bloop.token.Token;
 import bloop.token.TokenType;
 
@@ -36,6 +36,11 @@ public class Parser {
             instructions.add(parseInstruction());
         }
 
+        if (!hasReachedEnd()) {
+            throw createError(currentToken(),
+                    "Unexpected token '" + currentToken().getValue() + "' at end of input");
+        }
+
         return instructions;
     }
 
@@ -56,7 +61,7 @@ public class Parser {
     }
 
     private Instruction parsePutInstruction() {
-        Token putToken = consumeExpected(TokenType.PUT, "Expected 'put'");
+        consumeExpected(TokenType.PUT, "Expected 'put'");
 
         Expression valueExpression = parseExpression();
 
@@ -102,7 +107,6 @@ public class Parser {
     }
 
     private Instruction parseRepeatInstruction() {
-        // 1. Token aur count yahan declare aur initialize hone zaroori hain
         Token repeatToken = consumeExpected(TokenType.REPEAT, "Expected 'repeat'");
 
         Token numberToken = consumeExpected(TokenType.NUMBER, "Expected a number after 'repeat'");
@@ -111,7 +115,6 @@ public class Parser {
         consumeExpected(TokenType.TIMES, "Expected 'times' after repeat count");
         consumeExpected(TokenType.COLON, "Expected ':' after 'times'");
 
-        // 2. Phir indentation aur body parse hoti hai
         consumeNewlineIfPresent();
 
         List<Instruction> body = parseIndentedBlock();
@@ -120,7 +123,6 @@ public class Parser {
             throw createError(repeatToken, "Expected at least one instruction in 'repeat' body");
         }
 
-        // 3. Ab IDE ko repeatCount mil jayega aur koi error nahi aayega!
         return new RepeatInstruction(repeatCount, body);
     }
 
@@ -147,26 +149,27 @@ public class Parser {
     }
 
 
-    // ── Expression Parsing (FIXED PRECEDENCE) ────────────────
+    // Expression Parsing
 
-    // Layer 1: Comparisons & Equality (Lower precedence)
+    // Layer 1: Comparisons & Equality (Lowest precedence)
+    // 'if' use kiya hai 'while' ki jagah — chained comparisons blocked
     private Expression parseExpression() {
         Expression left = parseAddition();
 
-        while (matchAndConsume(
+        if (matchAndConsume(
                 TokenType.GREATER, TokenType.LESS,
                 TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL,
                 TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL
         )) {
             String operator = lastConsumedToken().getValue();
             Expression right = parseAddition();
-            left = new BinaryOpNode(left, operator, right);
+            return new BinaryOpNode(left, operator, right);
         }
 
         return left;
     }
 
-    // Layer 2: Addition & Subtraction (Higher precedence than comparisons)
+    // Layer 2: Addition & Subtraction
     private Expression parseAddition() {
         Expression left = parseTerm();
 
@@ -179,7 +182,7 @@ public class Parser {
         return left;
     }
 
-    // Layer 3: Multiplication & Division (Highest arithmetic precedence)
+    // Layer 3: Multiplication & Division
     private Expression parseTerm() {
         Expression left = parsePrimary();
 
@@ -194,20 +197,31 @@ public class Parser {
 
     // Layer 4: Base Values
     private Expression parsePrimary() {
+
+        // Parenthesized expressions — (2 + 3) * 4
+        if (isCurrentToken(TokenType.LPAREN)) {
+            consumeToken();
+            Expression expr = parseExpression();
+            consumeExpected(TokenType.RPAREN, "Expected ')' to close '('");
+            return expr;
+        }
+
+        if (isCurrentToken(TokenType.NUMBER)) {
+            Token t = consumeToken();
+            return parseNumberLiteral(t);
+        }
+
+        if (isCurrentToken(TokenType.STRING)) {
+            Token t = consumeToken();
+            return new StringNode(t.getValue());
+        }
+
+        if (isCurrentToken(TokenType.IDENTIFIER)) {
+            Token t = consumeToken();
+            return new VariableNode(t.getValue());
+        }
+
         Token token = currentToken();
-
-        if (matchAndConsume(TokenType.NUMBER)) {
-            return parseNumberLiteral(token);
-        }
-
-        if (matchAndConsume(TokenType.STRING)) {
-            return new StringNode(token.getValue());
-        }
-
-        if (matchAndConsume(TokenType.IDENTIFIER)) {
-            return new VariableNode(token.getValue());
-        }
-
         throw createError(token,
                 "Expected a number, string, or variable but got '" + token.getValue() + "'");
     }
@@ -226,28 +240,25 @@ public class Parser {
 
     private int parseAndValidateRepeatCount(Token token) {
         try {
-            double value = Double.parseDouble(token.getValue());
 
-            if (value != Math.floor(value)) {
-                throw createError(token,
-                        "Repeat count must be a whole number, got: '" + token.getValue() + "'");
-            }
+            long value = Long.parseLong(token.getValue());
 
             if (value < 0) {
                 throw createError(token,
                         "Repeat count cannot be negative: '" + token.getValue() + "'");
             }
 
-            // FIXED: Prevent Integer Overflow if user inputs massive repeat count
             if (value > Integer.MAX_VALUE) {
                 throw createError(token,
                         "Repeat count is too large to execute: '" + token.getValue() + "'");
             }
 
-            return (int) value;
+            return (int) value; // safe — upar dono checks ho chuke hain
 
         } catch (NumberFormatException e) {
-            throw createError(token, "Invalid repeat count: '" + token.getValue() + "'");
+            // Decimals, floats, garbage
+            throw createError(token,
+                    "Repeat count must be a whole number: '" + token.getValue() + "'");
         }
     }
 
@@ -264,7 +275,7 @@ public class Parser {
     }
 
 
-    // Token Utilities (Readable Naming)
+    // Token Utilities
 
     private boolean matchAndConsume(TokenType... types) {
         for (TokenType type : types) {
@@ -295,15 +306,17 @@ public class Parser {
         return currentToken().getType() == TokenType.EOF;
     }
 
-    // FIXED: Bounds check to prevent unhandled raw Java Exceptions
     private Token currentToken() {
         if (currentIndex >= tokens.size()) {
-            return new Token(TokenType.EOF, "EOF", -1); // Safe fallback
+            return new Token(TokenType.EOF, "EOF", -1);
         }
         return tokens.get(currentIndex);
     }
 
     private Token lastConsumedToken() {
+        if (currentIndex == 0) {
+            throw new BloopParseException("Internal parser error: no token has been consumed yet", -1);
+        }
         return tokens.get(currentIndex - 1);
     }
 

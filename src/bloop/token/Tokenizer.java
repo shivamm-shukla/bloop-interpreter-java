@@ -166,7 +166,7 @@ public class Tokenizer {
                     pos++;
                     tokens.add(new Token(TokenType.EQUAL_EQUAL, "==", line));
                 } else {
-                    throw new BloopRuntimeException("Unexpected '=' at line " + line);
+                    throw new BloopLexerException("Unexpected '=' at line " + line);
                 }
                 break;
 
@@ -175,7 +175,7 @@ public class Tokenizer {
                     pos++;
                     tokens.add(new Token(TokenType.NOT_EQUAL, "!=", line));
                 } else {
-                    throw new BloopRuntimeException("Unexpected '!' at line " + line);
+                    throw new BloopLexerException("Unexpected '!' at line " + line);
                 }
                 break;
 
@@ -184,7 +184,7 @@ public class Tokenizer {
                 break;
 
             default:
-                throw new BloopRuntimeException(
+                throw new BloopLexerException(
                         "Unexpected character: " + current + " at line " + line);
         }
     }

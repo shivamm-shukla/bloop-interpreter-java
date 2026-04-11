@@ -1,0 +1,3 @@
+put "Sitare" into name
+print name
+print "Hello from BLOOP"

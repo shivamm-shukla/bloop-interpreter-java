@@ -1,6 +1,7 @@
 package bloop.ast;
 
 import bloop.runtime.Environment;
+import bloop.exceptions.BloopRuntimeException;
 
 public class VariableNode implements Expression {
 
@@ -13,25 +14,21 @@ public class VariableNode implements Expression {
 
     @Override
     public Object evaluate(Environment env) {
-        validateEnvironment(env);
-        return env.get(name);
-    }
+        // FIXED: Removed redundant validateEnvironment(env) for tight loop performance
+        Object value = env.get(name);
 
-    // ── Validation ───────────────────────────────────
+        // FIXED: Safely handling undefined variables instead of propagating nulls
+        if (value == null) {
+            throw new BloopRuntimeException("Undefined variable: '" + name + "'");
+        }
+        return value;
+    }
 
     private void validateName(String name) {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("VariableNode: name cannot be null or empty");
         }
     }
-
-    private void validateEnvironment(Environment env) {
-        if (env == null) {
-            throw new IllegalArgumentException("VariableNode: environment cannot be null");
-        }
-    }
-
-    // for debugging
 
     public String getName() {
         return name;

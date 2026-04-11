@@ -25,17 +25,13 @@ public class BinaryOpNode implements Expression {
         Object rightVal = right.evaluate(env);
 
         switch (op) {
-
             // ── Arithmetic ──────────────────────────────
             case "+":
                 return handleAddition(leftVal, rightVal);
-
             case "-":
                 return requireNumber(leftVal, "-") - requireNumber(rightVal, "-");
-
             case "*":
                 return requireNumber(leftVal, "*") * requireNumber(rightVal, "*");
-
             case "/":
                 double divisor = requireNumber(rightVal, "/");
                 if (divisor == 0) {
@@ -46,22 +42,16 @@ public class BinaryOpNode implements Expression {
             // ── Comparisons ─────────────────────────────
             case ">":
                 return requireNumber(leftVal, ">") > requireNumber(rightVal, ">");
-
             case "<":
                 return requireNumber(leftVal, "<") < requireNumber(rightVal, "<");
-
             case ">=":
                 return requireNumber(leftVal, ">=") >= requireNumber(rightVal, ">=");
-
             case "<=":
                 return requireNumber(leftVal, "<=") <= requireNumber(rightVal, "<=");
-
             case "==":
                 return isEqual(leftVal, rightVal);
-
             case "!=":
                 return !isEqual(leftVal, rightVal);
-
             default:
                 throw new BloopRuntimeException("Unknown operator: '" + op + "'");
         }
@@ -70,7 +60,6 @@ public class BinaryOpNode implements Expression {
     // ── Operation Helpers ────────────────────────────
 
     private Object handleAddition(Object leftVal, Object rightVal) {
-        // String concatenation takes precedence
         if (leftVal instanceof String || rightVal instanceof String) {
             return stringify(leftVal) + stringify(rightVal);
         }
@@ -78,18 +67,28 @@ public class BinaryOpNode implements Expression {
     }
 
     private boolean isEqual(Object leftVal, Object rightVal) {
-        if (leftVal instanceof Double && rightVal instanceof Double) {
-            return requireNumber(leftVal, "==") == requireNumber(rightVal, "==");
+
+        if (leftVal == null || rightVal == null) {
+            return leftVal == rightVal;
         }
-        if (leftVal == null) return rightVal == null;
+
+        // Handle numbers properly
+        if (leftVal instanceof Number && rightVal instanceof Number) {
+            double l = ((Number) leftVal).doubleValue();
+            double r = ((Number) rightVal).doubleValue();
+            return Double.compare(l, r) == 0;
+        }
+
+        // fallback for other types (String, Boolean, etc.)
         return leftVal.equals(rightVal);
     }
 
     // ── Utility Helpers ──────────────────────────────
 
     private double requireNumber(Object value, String op) {
-        if (value instanceof Double) {
-            return (Double) value;
+        // FIXED: Checks against Number instead of strict Double
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
         }
         throw new BloopRuntimeException(
                 "Operator '" + op + "' requires a number, got: " +
@@ -103,7 +102,8 @@ public class BinaryOpNode implements Expression {
         if (value instanceof Double) {
             double d = (Double) value;
             if (d == Math.floor(d) && !Double.isInfinite(d)) {
-                return String.valueOf((int) d);
+                //Casted to long to prevent overflow for large numbers
+                return String.valueOf((long) d);
             }
             return String.valueOf(d);
         }

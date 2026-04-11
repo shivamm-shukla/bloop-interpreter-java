@@ -13,7 +13,7 @@ public class NumberNode implements Expression {
 
     @Override
     public Object evaluate(Environment env) {
-        return value;
+        return (value == 0.0) ? 0.0 : value;
     }
 
     // ── Validation ───────────────────────────────────

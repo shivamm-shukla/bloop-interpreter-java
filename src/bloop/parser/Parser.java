@@ -36,6 +36,11 @@ public class Parser {
             instructions.add(parseInstruction());
         }
 
+        if (!hasReachedEnd()) {
+            throw createError(currentToken(),
+                    "Unexpected token '" + currentToken().getValue() + "' at end of input");
+        }
+
         return instructions;
     }
 
@@ -45,18 +50,17 @@ public class Parser {
     private Instruction parseInstruction() {
         Token token = currentToken();
 
-        switch (token.getType()) {
-            case PUT:    return parsePutInstruction();
-            case PRINT:  return parsePrintInstruction();
-            case IF:     return parseIfInstruction();
-            case REPEAT: return parseRepeatInstruction();
-            default:
-                throw createError(token, "Unexpected token '" + token.getValue() + "'");
-        }
+        return switch (token.getType()) {
+            case PUT -> parsePutInstruction();
+            case PRINT -> parsePrintInstruction();
+            case IF -> parseIfInstruction();
+            case REPEAT -> parseRepeatInstruction();
+            default -> throw createError(token, "Unexpected token '" + token.getValue() + "'");
+        };
     }
 
     private Instruction parsePutInstruction() {
-        Token putToken = consumeExpected(TokenType.PUT, "Expected 'put'");
+        consumeExpected(TokenType.PUT, "Expected 'put'");
 
         Expression valueExpression = parseExpression();
 
@@ -146,15 +150,29 @@ public class Parser {
 
     // Expression Parsing
 
+    // Layer 1: Comparisons & Equality (Lowest precedence)
+    // chained comparisons blocked
     private Expression parseExpression() {
-        Expression left = parseTerm();
+        Expression left = parseAddition();
 
-        while (matchAndConsume(
-                TokenType.PLUS, TokenType.MINUS,
+        if (matchAndConsume(
                 TokenType.GREATER, TokenType.LESS,
                 TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL,
                 TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL
         )) {
+            String operator = lastConsumedToken().getValue();
+            Expression right = parseAddition();
+            return new BinaryOpNode(left, operator, right);
+        }
+
+        return left;
+    }
+
+    // Layer 2: Addition & Subtraction
+    private Expression parseAddition() {
+        Expression left = parseTerm();
+
+        while (matchAndConsume(TokenType.PLUS, TokenType.MINUS)) {
             String operator = lastConsumedToken().getValue();
             Expression right = parseTerm();
             left = new BinaryOpNode(left, operator, right);
@@ -163,6 +181,7 @@ public class Parser {
         return left;
     }
 
+    // Layer 3: Multiplication & Division
     private Expression parseTerm() {
         Expression left = parsePrimary();
 
@@ -175,21 +194,33 @@ public class Parser {
         return left;
     }
 
+    // Layer 4: Base Values
     private Expression parsePrimary() {
+
+        // Parenthesized expressions — (2 + 3) * 4
+        if (isCurrentToken(TokenType.LPAREN)) {
+            consumeToken();
+            Expression expr = parseExpression();
+            consumeExpected(TokenType.RPAREN, "Expected ')' to close '('");
+            return expr;
+        }
+
+        if (isCurrentToken(TokenType.NUMBER)) {
+            Token t = consumeToken();
+            return parseNumberLiteral(t);
+        }
+
+        if (isCurrentToken(TokenType.STRING)) {
+            Token t = consumeToken();
+            return new StringNode(t.getValue());
+        }
+
+        if (isCurrentToken(TokenType.IDENTIFIER)) {
+            Token t = consumeToken();
+            return new VariableNode(t.getValue());
+        }
+
         Token token = currentToken();
-
-        if (matchAndConsume(TokenType.NUMBER)) {
-            return parseNumberLiteral(token);
-        }
-
-        if (matchAndConsume(TokenType.STRING)) {
-            return new StringNode(token.getValue());
-        }
-
-        if (matchAndConsume(TokenType.IDENTIFIER)) {
-            return new VariableNode(token.getValue());
-        }
-
         throw createError(token,
                 "Expected a number, string, or variable but got '" + token.getValue() + "'");
     }
@@ -208,22 +239,25 @@ public class Parser {
 
     private int parseAndValidateRepeatCount(Token token) {
         try {
-            double value = Double.parseDouble(token.getValue());
 
-            if (value != Math.floor(value)) {
-                throw createError(token,
-                        "Repeat count must be a whole number, got: '" + token.getValue() + "'");
-            }
+            long value = Long.parseLong(token.getValue());
 
             if (value < 0) {
                 throw createError(token,
                         "Repeat count cannot be negative: '" + token.getValue() + "'");
             }
 
+            if (value > Integer.MAX_VALUE) {
+                throw createError(token,
+                        "Repeat count is too large to execute: '" + token.getValue() + "'");
+            }
+
             return (int) value;
 
         } catch (NumberFormatException e) {
-            throw createError(token, "Invalid repeat count: '" + token.getValue() + "'");
+            // Decimals, floats, garbage
+            throw createError(token,
+                    "Repeat count must be a whole number: '" + token.getValue() + "'");
         }
     }
 
@@ -240,7 +274,7 @@ public class Parser {
     }
 
 
-    // Token Utilities (Readable Naming)
+    // Token Utilities
 
     private boolean matchAndConsume(TokenType... types) {
         for (TokenType type : types) {
@@ -272,10 +306,16 @@ public class Parser {
     }
 
     private Token currentToken() {
+        if (currentIndex >= tokens.size()) {
+            return new Token(TokenType.EOF, "EOF", -1);
+        }
         return tokens.get(currentIndex);
     }
 
     private Token lastConsumedToken() {
+        if (currentIndex == 0) {
+            throw new BloopParseException("Internal parser error: no token has been consumed yet", -1);
+        }
         return tokens.get(currentIndex - 1);
     }
 

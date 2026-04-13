@@ -1,113 +1,92 @@
 package bloop.ast;
 
-import bloop.runtime.Environment;
 import bloop.exceptions.BloopRuntimeException;
+import bloop.runtime.Environment;
 
-public class BinaryOpNode implements Expression {
 
-    private final Expression left;
-    private final String op;
-    private final Expression right;
+public final class BinaryOpNode implements Expression {
 
-    public BinaryOpNode(Expression left, String op, Expression right) {
-        if (left == null)  throw new IllegalArgumentException("Left expression cannot be null");
-        if (op == null)    throw new IllegalArgumentException("Operator cannot be null");
-        if (right == null) throw new IllegalArgumentException("Right expression cannot be null");
+    private final Expression leftOperand;
+    private final String     operator;
+    private final Expression rightOperand;
 
-        this.left = left;
-        this.op = op;
-        this.right = right;
+    public BinaryOpNode(Expression leftOperand, String operator, Expression rightOperand) {
+        this.leftOperand  = leftOperand;
+        this.operator     = operator;
+        this.rightOperand = rightOperand;
     }
+
 
     @Override
     public Object evaluate(Environment env) {
-        Object leftVal  = left.evaluate(env);
-        Object rightVal = right.evaluate(env);
+        Object leftValue  = leftOperand.evaluate(env);
+        Object rightValue = rightOperand.evaluate(env);
 
-        switch (op) {
-            // ── Arithmetic ──────────────────────────────
-            case "+":
-                return handleAddition(leftVal, rightVal);
-            case "-":
-                return requireNumber(leftVal, "-") - requireNumber(rightVal, "-");
-            case "*":
-                return requireNumber(leftVal, "*") * requireNumber(rightVal, "*");
-            case "/":
-                double divisor = requireNumber(rightVal, "/");
-                if (divisor == 0) {
-                    throw new BloopRuntimeException("Division by zero");
-                }
-                return requireNumber(leftVal, "/") / divisor;
-
-            // ── Comparisons ─────────────────────────────
-            case ">":
-                return requireNumber(leftVal, ">") > requireNumber(rightVal, ">");
-            case "<":
-                return requireNumber(leftVal, "<") < requireNumber(rightVal, "<");
-            case ">=":
-                return requireNumber(leftVal, ">=") >= requireNumber(rightVal, ">=");
-            case "<=":
-                return requireNumber(leftVal, "<=") <= requireNumber(rightVal, "<=");
-            case "==":
-                return isEqual(leftVal, rightVal);
-            case "!=":
-                return !isEqual(leftVal, rightVal);
-            default:
-                throw new BloopRuntimeException("Unknown operator: '" + op + "'");
-        }
+        return switch (operator) {
+            case "+"  -> applyArithmetic(leftValue, rightValue, operator);
+            case "-"  -> applyArithmetic(leftValue, rightValue, operator);
+            case "*"  -> applyArithmetic(leftValue, rightValue, operator);
+            case "/"  -> applyArithmetic(leftValue, rightValue, operator);
+            case ">"  -> applyComparison(leftValue, rightValue, operator);
+            case ">=" -> applyComparison(leftValue, rightValue, operator);
+            case "<"  -> applyComparison(leftValue, rightValue, operator);
+            case "<=" -> applyComparison(leftValue, rightValue, operator);
+            case "==" -> applyEquality(leftValue, rightValue);
+            case "!=" -> !(boolean) applyEquality(leftValue, rightValue);
+            default   -> throw new BloopRuntimeException("Unknown operator: '" + operator + "'");
+        };
     }
 
-    // ── Operation Helpers ────────────────────────────
+    // ── private helpers ───────────────────────────────────────────────────
 
-    private Object handleAddition(Object leftVal, Object rightVal) {
-        if (leftVal instanceof String || rightVal instanceof String) {
-            return stringify(leftVal) + stringify(rightVal);
-        }
-        return requireNumber(leftVal, "+") + requireNumber(rightVal, "+");
-    }
+    private Object applyArithmetic(Object left, Object right, String op) {
+        double leftNum  = requireDouble(left,  "Left operand of '" + op + "'");
+        double rightNum = requireDouble(right, "Right operand of '" + op + "'");
 
-    private boolean isEqual(Object leftVal, Object rightVal) {
-
-        if (leftVal == null || rightVal == null) {
-            return leftVal == rightVal;
-        }
-
-        // Handle numbers properly
-        if (leftVal instanceof Number && rightVal instanceof Number) {
-            double l = ((Number) leftVal).doubleValue();
-            double r = ((Number) rightVal).doubleValue();
-            return Double.compare(l, r) == 0;
-        }
-
-        // fallback for other types (String, Boolean, etc.)
-        return leftVal.equals(rightVal);
-    }
-
-    // ── Utility Helpers ──────────────────────────────
-
-    private double requireNumber(Object value, String op) {
-        // FIXED: Checks against Number instead of strict Double
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
-        }
-        throw new BloopRuntimeException(
-                "Operator '" + op + "' requires a number, got: " +
-                        (value == null ? "null" : value.getClass().getSimpleName())
-        );
-    }
-
-    private String stringify(Object value) {
-        if (value == null) return "null";
-
-        if (value instanceof Double) {
-            double d = (Double) value;
-            if (d == Math.floor(d) && !Double.isInfinite(d)) {
-                //Casted to long to prevent overflow for large numbers
-                return String.valueOf((long) d);
+        return switch (op) {
+            case "+" -> leftNum + rightNum;
+            case "-" -> leftNum - rightNum;
+            case "*" -> leftNum * rightNum;
+            case "/" -> {
+                if (rightNum == 0) throw new BloopRuntimeException("Division by zero");
+                yield leftNum / rightNum;
             }
-            return String.valueOf(d);
-        }
+            default -> throw new BloopRuntimeException("Unknown arithmetic operator: '" + op + "'");
+        };
+    }
 
-        return value.toString();
+    private Object applyComparison(Object left, Object right, String op) {
+        double leftNum  = requireDouble(left,  "Left operand of '" + op + "'");
+        double rightNum = requireDouble(right, "Right operand of '" + op + "'");
+
+        return switch (op) {
+            case ">"  -> leftNum >  rightNum;
+            case ">=" -> leftNum >= rightNum;
+            case "<"  -> leftNum <  rightNum;
+            case "<=" -> leftNum <= rightNum;
+            default   -> throw new BloopRuntimeException("Unknown comparison operator: '" + op + "'");
+        };
+    }
+
+    private Object applyEquality(Object left, Object right) {
+        if (left instanceof Double leftNum && right instanceof Double rightNum) {
+            return leftNum.equals(rightNum);
+        }
+        if (left instanceof String && right instanceof String) {
+            return left.equals(right);
+        }
+        // Comparing different types (e.g. number == string) is always false
+        return false;
+    }
+
+    private double requireDouble(Object value, String context) {
+        if (value instanceof Double d) return d;
+        throw new BloopRuntimeException(
+                context + " must be a number, but got: \"" + value + "\"");
+    }
+
+    @Override
+    public String toString() {
+        return "BinaryOpNode(" + leftOperand + " " + operator + " " + rightOperand + ")";
     }
 }

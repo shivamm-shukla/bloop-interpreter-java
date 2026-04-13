@@ -1,24 +1,25 @@
 package bloop.exceptions;
 
-public abstract class BloopException extends RuntimeException {
 
-    private final int line;
 
-    protected BloopException(String message, int line) {
-        super(formatMessage(message, line));
-        this.line = line;
+public class BloopException extends RuntimeException {
+
+    private final int sourceLine;
+
+    public BloopException(String message, int sourceLine) {
+        super(buildMessage(message, sourceLine));
+        this.sourceLine = sourceLine;
     }
 
-    protected BloopException(String message) {
-        super(message);
-        this.line = -1; // Unknown line
+    public int getSourceLine() {
+        return sourceLine;
     }
 
-    public int getLine() {
-        return line;
-    }
+    // ── private helpers ───────────────────────────────────────────────────
 
-    private static String formatMessage(String message, int line) {
-        return "[line " + line + "] " + message;
+    private static String buildMessage(String message, int line) {
+        return line >= 0
+                ? "[Line " + line + "] " + message
+                : message;
     }
 }

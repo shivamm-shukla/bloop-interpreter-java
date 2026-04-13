@@ -2,31 +2,23 @@ package bloop.ast;
 
 import bloop.runtime.Environment;
 
-public class StringNode implements Expression {
 
-    private final String value;
+public final class StringNode implements Expression {
 
-    public StringNode(String value) {
-        validate(value);
-        this.value = value;
+    private final String stringValue;
+
+    public StringNode(String stringValue) {
+        this.stringValue = stringValue;
     }
+
 
     @Override
     public Object evaluate(Environment env) {
-        return value;
+        return stringValue;
     }
 
-    // ── Validation ───────────────────────────────────
-
-    private void validate(String value) {
-        if (value == null) {
-            throw new IllegalArgumentException("StringNode: value cannot be null");
-        }
-    }
-
-    // for debugging
-
-    public String getValue() {
-        return value;
+    @Override
+    public String toString() {
+        return "StringNode(\"" + stringValue + "\")";
     }
 }

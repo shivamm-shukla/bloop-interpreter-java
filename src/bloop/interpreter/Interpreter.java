@@ -1,7 +1,7 @@
 package bloop.interpreter;
 
 import bloop.exceptions.BloopException;
-import bloop.instructions.Instruction;
+import bloop.instruction.Instruction;
 import bloop.parser.Parser;
 import bloop.runtime.Environment;
 import bloop.token.Token;
@@ -9,41 +9,34 @@ import bloop.token.Tokenizer;
 
 import java.util.List;
 
-public class Interpreter {
-    public void run(String source) {
-        if (source == null) {
-            throw new IllegalArgumentException("Source code cannot be null");
-        }
 
-        if (source.trim().isEmpty()) {
-            return;
-        }
+public final class Interpreter {
 
+    private final Parser parser;
+
+    // constructor — uses the default built-in parser configuration
+    public Interpreter() {
+        this.parser = Parser.createDefault();
+    }
+
+
+    public void run(String sourceCode) {
         try {
-            Tokenizer tokenizer = new Tokenizer(source);
-            List<Token> tokens = tokenizer.tokenize();
+            // Stage 1: Tokenize
+            Tokenizer         tokenizer    = new Tokenizer(sourceCode);
+            List<Token>       tokens       = tokenizer.tokenize();
 
-            Parser parser = new Parser(tokens);
-            List<Instruction> program = parser.parse();
+            // Stage 2: Parse
+            List<Instruction> instructions = parser.parse(tokens);
 
-            Environment env = new Environment();
-            for (Instruction instruction : program) {
-                instruction.execute(env);
+            // Stage 3: Execute
+            Environment sharedEnvironment = new Environment();
+            for (Instruction instruction : instructions) {
+                instruction.execute(sharedEnvironment);
             }
 
         } catch (BloopException e) {
-            System.err.println(formatError(e));
+            System.err.println(e.getMessage());
         }
-    }
-
-    // ─────────────── Error Formatting ───────────────
-
-    private String formatError(BloopException e) {
-        int line = e.getLine();
-
-        if (line >= 0) {
-            return "[Error at line " + line + "] " + e.getMessage();
-        }
-        return "[Error] " + e.getMessage();
     }
 }

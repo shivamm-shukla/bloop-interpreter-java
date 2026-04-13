@@ -5,37 +5,35 @@ import bloop.exceptions.BloopRuntimeException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Environment {
+public final class Environment {
 
-    private final Map<String, Object> variables = new HashMap<>();
-
-    // ─────────────── Public API ───────────────
+    private final Map<String, Object> variableStore = new HashMap<>();
 
     public void set(String name, Object value) {
-        validateName(name);
-        variables.put(name, value);
+        variableStore.put(name, value);
     }
+
 
     public Object get(String name) {
-        validateName(name);
-
-        if (!variables.containsKey(name)) {
-            throw new BloopRuntimeException("Undefined variable: '" + name + "'");
+        if (!variableStore.containsKey(name)) {
+            throw new BloopRuntimeException(
+                    "Variable '" + name + "' is used before it was assigned");
         }
-
-        return variables.get(name);
+        return variableStore.get(name);
     }
 
+    // True if the variable has been assigned at least once
     public boolean isDefined(String name) {
-        validateName(name);
-        return variables.containsKey(name);
+        return variableStore.containsKey(name);
     }
 
-    // ─────────────── Internal Helpers ───────────────
+    // Returns a read-only snapshot of all variables (for debugging)
+    public Map<String, Object> snapshot() {
+        return Map.copyOf(variableStore);
+    }
 
-    private void validateName(String name) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new BloopRuntimeException("Variable name cannot be null or empty");
-        }
+    @Override
+    public String toString() {
+        return "Environment" + variableStore;
     }
 }

@@ -1,12 +1,13 @@
 package bloop.exceptions;
 
+
 public class BloopRuntimeException extends BloopException {
 
-    public BloopRuntimeException(String message) {
-        super("Runtime error: " + message, -1);
+    public BloopRuntimeException(String message, int sourceLine) {
+        super("Runtime error — " + message, sourceLine);
     }
 
-    public BloopRuntimeException(String message, int line) {
-        super("Runtime error at line " + line + ": " + message, line);
+    public BloopRuntimeException(String message) {
+        this(message, -1);
     }
 }

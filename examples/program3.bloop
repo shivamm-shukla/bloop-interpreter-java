@@ -1,0 +1,3 @@
+put 85 into score
+if score > 50 then:
+    print "Pass"

@@ -1,201 +1,179 @@
 # Architecture
 
-> This document explains how the BLOOP interpreter is structured internally — how data flows from raw source code to program output, and why the system is designed the way it is.
+> Internal design of the Bloop Interpreter — how source code becomes output.
 
 ---
 
-## The Three-Step Pipeline
+## Table of Contents
 
-Every time you run a `.bloop` file, the interpreter performs exactly three steps in sequence.
-
-```
-Source Code  →  [Tokenizer]  →  [Parser]  →  [Interpreter + Environment]  →  Output
-```
-
-Each step has one job. Each step hands its output to the next. Nothing skips a step.
-
----
-
-## Step 1 — Tokenizer (`token/`)
-
-**Input:** Raw source code as a single `String`  
-**Output:** `List<Token>`
-
-The Tokenizer reads the source character by character. When it recognises a complete pattern — a number, a keyword, an operator — it wraps it in a `Token` object and moves on.
-
-**Example:**
-
-Source: `put 10 into x`
-
-Produces:
-```
-Token(PUT,        "put",   line 1)
-Token(NUMBER,     "10",    line 1)
-Token(INTO,       "into",  line 1)
-Token(IDENTIFIER, "x",     line 1)
-Token(NEWLINE,    "\n",    line 1)
-```
-
-**Key classes:**
-
-| Class | Role |
-|-------|------|
-| `TokenType` | Enum listing every kind of token BLOOP can produce |
-| `Token` | Immutable object holding type, raw text, and line number |
-| `Tokenizer` | Walks the source string and emits tokens one at a time |
+1. [Overview](#1-overview)
+2. [Three-Stage Pipeline](#2-three-stage-pipeline)
+3. [Package Breakdown](#3-package-breakdown)
+4. [Stage 1 — Tokenizer](#4-stage-1--tokenizer)
+5. [Stage 2 — Parser](#5-stage-2--parser)
+6. [Stage 3 — Execution](#6-stage-3--execution)
+7. [Error Handling](#7-error-handling)
+8. [Extension Points](#8-extension-points)
 
 ---
 
-## Step 2 — Parser (`parser/` + `ast/`)
+## 1. Overview
 
-**Input:** `List<Token>`  
-**Output:** `List<Instruction>`
+The Bloop interpreter is a **tree-walking interpreter** implemented in Java. It processes source code in three sequential stages — tokenization, parsing, and execution — each completely separated from the others. No stage knows about the internals of the stage before or after it.
 
-The Parser reads tokens one at a time and decides what kind of instruction it is looking at. For each instruction it builds an object. For each expression inside that instruction it builds a tree.
-
-### Why a Tree?
-
-Arithmetic has structure. In `x + y * 2`, multiplication must happen before addition. A flat list of tokens cannot capture this — but a tree can.
-
-```
-    Add
-   /   \
-  x   Multiply
-       /   \
-      y     2
-```
-
-The node sitting deeper in the tree gets evaluated first. The shape of the tree encodes precedence automatically — no special logic needed at evaluation time.
-
-### How Precedence is Handled
-
-The Parser uses three chained methods:
-
-```
-parseExpression()  →  handles + and -  (lowest precedence)
-     calls
-parseTerm()        →  handles * and /  (higher precedence)
-     calls
-parsePrimary()     →  handles a single number, string, or variable  (highest)
-```
-
-Because `parseTerm` is called first for each operand of `+` or `-`, multiplication and division naturally bind tighter. This is called **recursive descent parsing**.
-
-**Example:**
-
-Source: `put x + y * 2 into result`
-
-Parser builds:
-```
-AssignInstruction(
-  name = "result",
-  expression = BinaryOpNode(
-    left  = VariableNode("x"),
-    op    = "+",
-    right = BinaryOpNode(
-      left  = VariableNode("y"),
-      op    = "*",
-      right = NumberNode(2)
-    )
-  )
-)
-```
-
-**Key classes:**
-
-| Class | Role |
-|-------|------|
-| `Expression` | Interface with `evaluate(Environment)` — all expression nodes implement this |
-| `NumberNode` | Leaf node — holds a numeric literal |
-| `StringNode` | Leaf node — holds a string literal |
-| `VariableNode` | Leaf node — looks up a variable in the Environment |
-| `BinaryOpNode` | Composite node — holds left expression, operator, right expression |
-| `Parser` | Reads tokens and builds the instruction + expression tree |
+The entry point is `Interpreter.run(String sourceCode)`, which orchestrates all three stages and handles top-level error reporting.
 
 ---
 
-## Step 3 — Interpreter + Environment (`interpreter/` + `runtime/`)
-
-**Input:** `List<Instruction>` + shared `Environment`  
-**Output:** Printed output to stdout
-
-The Interpreter loops through every instruction and calls `execute(env)` on it. Each instruction evaluates its expressions and reads or writes variables through the shared `Environment`.
-
-```java
-Environment env = new Environment();
-for (Instruction instr : instructions) {
-    instr.execute(env);
-}
-```
-
-### Environment
-
-The `Environment` is a simple `Map<String, Object>`. It is created once and shared across every instruction. Every assignment writes to it. Every variable reference reads from it.
+## 2. Three-Stage Pipeline
 
 ```
-put 10 into x     →  env.set("x", 10.0)
-print x           →  env.get("x")  →  prints 10
+Source Code (String)
+       │
+       ▼
+┌─────────────────────────────────────┐
+│  Stage 1 — Tokenizer                │
+│  Tokenizer + LexerCursor +          │
+│  IndentationHandler + Registries    │
+└─────────────────────────────────────┘
+       │
+       ▼  List<Token>
+┌─────────────────────────────────────┐
+│  Stage 2 — Parser                   │
+│  Parser + TokenCursor +             │
+│  ExpressionParser + StatementParsers│
+└─────────────────────────────────────┘
+       │
+       ▼  List<Instruction>
+┌─────────────────────────────────────┐
+│  Stage 3 — Execute                  │
+│  Instruction.execute(Environment)   │
+└─────────────────────────────────────┘
+       │
+       ▼  Output / RuntimeException
 ```
 
-**Key classes:**
-
-| Class | Role |
-|-------|------|
-| `Instruction` | Interface with `execute(Environment)` — all instruction classes implement this |
-| `AssignInstruction` | Evaluates expression, stores result in Environment |
-| `PrintInstruction` | Evaluates expression, prints result to stdout |
-| `IfInstruction` | Evaluates condition, executes body if true |
-| `RepeatInstruction` | Executes body a fixed number of times |
-| `Environment` | Shared variable store — `Map<String, Object>` |
-| `Interpreter` | Creates the pipeline — runs Tokenizer, Parser, then execution loop |
+Each stage produces a clean data structure that the next stage consumes. The stages share no mutable state.
 
 ---
 
-## Complete Data Flow — Worked Example
+## 3. Package Breakdown
 
-**Source:** `program3.bloop`
-```
-put 85 into score
-if score > 50 then:
-    print "Pass"
-```
-
-```
-Tokenizer produces:
-  [PUT, NUMBER(85), INTO, IDENTIFIER(score), NEWLINE,
-   IF, IDENTIFIER(score), GREATER, NUMBER(50), THEN, COLON, NEWLINE,
-   PRINT, STRING("Pass"), NEWLINE, EOF]
-
-Parser builds:
-  [
-    AssignInstruction("score", NumberNode(85)),
-    IfInstruction(
-      condition = BinaryOpNode(VariableNode("score"), ">", NumberNode(50)),
-      body = [ PrintInstruction(StringNode("Pass")) ]
-    )
-  ]
-
-Interpreter executes:
-  AssignInstruction → env.set("score", 85.0)
-  IfInstruction     → evaluates BinaryOpNode → 85.0 > 50.0 → true
-                    → executes body
-  PrintInstruction  → prints "Pass"
-
-Output:
-  Pass
-```
+| Package | Responsibility |
+|---|---|
+| `bloop.token` | `Token` record, `TokenType` enum, `Tokenizer` |
+| `bloop.lexer` | Tokenizer helpers — `LexerCursor`, `IndentationHandler`, `KeywordRegistry`, `OperatorRegistry` |
+| `bloop.ast` | Expression nodes — `Expression` interface, `NumberNode`, `StringNode`, `VariableNode`, `BinaryOpNode` |
+| `bloop.parser` | Top-level `Parser`, orchestrates statement and expression parsing |
+| `bloop.parser.cursor` | `TokenCursor` — stateful token navigation |
+| `bloop.parser.expression` | `ExpressionParser` — recursive-descent expression parsing |
+| `bloop.parser.statement` | `StatementParser` interface, `BlockParser`, `StatementParserRegistry`, and all statement parser implementations |
+| `bloop.instruction` | `Instruction` interface, `AssignInstruction`, `PrintInstruction`, `IfInstruction`, `RepeatInstruction` |
+| `bloop.runtime` | `Environment` — variable storage (name → value map) |
+| `bloop.interpreter` | `Interpreter` — entry point, owns the pipeline |
+| `bloop.exceptions` | `BloopException` hierarchy — Lexer, Parse, and Runtime exceptions |
 
 ---
 
-## Package Summary
+## 4. Stage 1 — Tokenizer
 
-```
-bloop/
-├── token/        Step 1 — Lexical analysis
-├── ast/          Step 2 — Expression tree nodes
-├── parser/       Step 2 — Token list to instruction list
-├── instruction/  Step 3 — Instruction execution
-├── runtime/      Step 3 — Variable storage
-├── interpreter/  Connects all three steps
-└── Main.java     CLI entry point
-```
+**Entry:** `Tokenizer.tokenize()`  
+**Output:** `List<Token>` (immutable)
+
+The tokenizer converts raw source text into a flat, ordered list of tokens. Each `Token` is a Java record holding a `TokenType`, a string `value`, and a `line` number.
+
+**Key responsibilities:**
+
+`LexerCursor` manages the current position in the source string and provides character-level read operations (`currentChar()`, `peekNextChar()`, `advance()`).
+
+`IndentationHandler` maintains a stack of indentation levels. On every new non-blank line it compares the current indentation against the stack and emits `INDENT` or `DEDENT` tokens as needed. This makes the grammar aware of block structure without the parser needing to count spaces.
+
+`KeywordRegistry` maps reserved words (`put`, `into`, `if`, `then`, `else`, `repeat`, `times`, `print`) to their `TokenType`. Any word not in the map becomes an `IDENTIFIER`.
+
+`OperatorRegistry` maps single characters and two-character compound operators to their token types. It distinguishes between `>` and `>=`, `=` and `==`, and so on.
+
+**Token types produced:**
+
+- Literals: `NUMBER`, `STRING`, `IDENTIFIER`
+- Keywords: `PUT`, `INTO`, `PRINT`, `IF`, `THEN`, `ELSE`, `REPEAT`, `TIMES`
+- Operators: `PLUS`, `MINUS`, `STAR`, `SLASH`, `EQUAL_EQUAL`, `NOT_EQUAL`, `GREATER`, `GREATER_EQUAL`, `LESS`, `LESS_EQUAL`
+- Symbols: `LEFT_PAREN`, `RIGHT_PAREN`, `COLON`, `COMMA`
+- Layout: `NEWLINE`, `INDENT`, `DEDENT`
+- Sentinel: `EOF`
+
+---
+
+## 5. Stage 2 — Parser
+
+**Entry:** `Parser.parse(List<Token>)`  
+**Output:** `List<Instruction>` (immutable)
+
+The parser consumes the token list and builds an Abstract Syntax Tree (AST) represented as a flat list of top-level `Instruction` objects. Each instruction may recursively contain `Expression` nodes and nested instruction lists (for blocks).
+
+**Key components:**
+
+`TokenCursor` wraps the token list with a current-index pointer. It provides `consume()`, `expect()`, `tryConsume()`, `check()`, and `skipNewlines()` — the entire parser communicates with the token stream only through this cursor.
+
+`ExpressionParser` implements a classic **recursive-descent parser** with four precedence layers: comparison (lowest) → addition/subtraction → multiplication/division → primary (highest). Unary minus and parenthesised expressions are handled at the primary layer.
+
+`StatementParserRegistry` is a map from `TokenType` to `StatementParser`. When the parser encounters a token, it looks up the registered handler. This makes adding new statement types a matter of implementing `StatementParser` and registering it — the `Parser` itself never changes.
+
+`BlockParser` is a `@FunctionalInterface` passed to every `StatementParser.parse()` call. It encapsulates the logic for parsing an `INDENT`-delimited block, so statement parsers do not need to know how blocks work.
+
+**Statement parsers:**
+
+| Class | Trigger token | Produces |
+|---|---|---|
+| `PutStatementParser` | `PUT` | `AssignInstruction` |
+| `PrintStatementParser` | `PRINT` | `PrintInstruction` |
+| `IfStatementParser` | `IF` | `IfInstruction` (with optional else) |
+| `RepeatStatementParser` | `REPEAT` | `RepeatInstruction` |
+
+---
+
+## 6. Stage 3 — Execution
+
+**Entry:** `Instruction.execute(Environment)`  
+**No return value** — instructions produce side effects (output, variable mutation)
+
+Each `Instruction` node calls `execute(env)` on itself. Instructions that contain nested blocks call `execute(env)` recursively on each nested instruction. `Expression` nodes are evaluated by `Expression.evaluate(env)`, which returns an `Object` (`Double` or `String`).
+
+`Environment` is a `HashMap<String, Object>` wrapped in a class. It provides `set(name, value)` and `get(name)`. Accessing an undefined variable immediately throws a `BloopRuntimeException`.
+
+**Execution behaviour by instruction type:**
+
+`AssignInstruction` evaluates its expression and calls `env.set()`.
+
+`PrintInstruction` evaluates its expression, formats the result (whole-number `Double` values are printed without a decimal point), and writes to `System.out`.
+
+`IfInstruction` evaluates its condition expression, asserts the result is a `Boolean`, and executes either the then-body or the else-body.
+
+`RepeatInstruction` evaluates its count expression, validates it is a non-negative whole number within `Integer.MAX_VALUE`, and iterates the body that many times.
+
+---
+
+## 7. Error Handling
+
+All interpreter exceptions extend `BloopException`, which stores an optional source line number and formats it into the message automatically.
+
+| Exception class | When thrown |
+|---|---|
+| `BloopLexerException` | Unrecognized character, unterminated string, malformed number, bad indentation |
+| `BloopParseException` | Unexpected token, missing keyword, empty block |
+| `BloopRuntimeException` | Undefined variable, wrong type in expression, division by zero, repeat count out of range |
+
+`Interpreter.run()` catches any `BloopException` and prints its message to `System.err`, so the program degrades gracefully rather than producing a stack trace.
+
+---
+
+## 8. Extension Points
+
+The architecture is intentionally open for extension:
+
+**Adding a new statement type** — implement `StatementParser`, define a trigger `TokenType`, and register the parser in `Parser.createDefault()`. No existing class changes.
+
+**Adding a new expression node** — implement `Expression`, add handling to `ExpressionParser` at the appropriate precedence level.
+
+**Adding a new instruction** — implement `Instruction`. The `Environment` and execution loop require no changes.
+
+**Adding a new built-in value type** — extend `BinaryOpNode` evaluation logic and update `PrintInstruction.formatForOutput()`.

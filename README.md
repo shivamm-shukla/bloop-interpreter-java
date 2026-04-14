@@ -1,275 +1,186 @@
-# BLOOP Interpreter
+# Bloop Interpreter — Java
 
-A working interpreter for the **BLOOP scripting language**, built entirely in pure Java.  
-Course Project — Advanced Object-Oriented Programming | Sitare University
+> A tree-walking interpreter for **Bloop**, a simple, indentation-based programming language — built in Java.
 
+---
 
+## What is Bloop?
 
+Bloop is a beginner-friendly programming language designed to be readable and minimal. It uses plain English-style syntax and indentation to define code blocks — no curly braces, no semicolons.
 
-## Table of Contents
+```
+put 5 into count
+repeat count times:
+    print "Hello, Bloop!"
+```
 
-- What is BLOOP?
-- Team
-- Project Structure
-- How to Compile and Run
-- Architecture
-- Design Patterns
-- OOP Principles
-- Sample Programs
-- Git Workflow
+---
 
+## Features
 
+- **Variables** — `put <value> into <name>`
+- **Arithmetic** — `+`, `-`, `*`, `/` with correct operator precedence
+- **Comparisons** — `==`, `!=`, `>`, `>=`, `<`, `<=`
+- **Print** — `print <expression>`
+- **If / Else** — indentation-based conditional blocks
+- **Repeat loop** — fixed-count iteration with expression support
+- **String literals** — with escape sequences (`\n`, `\t`, `\\`, `\"`)
+- **Meaningful error messages** — Lexer, Parse, and Runtime errors with line numbers
 
-## What is BLOOP?
-
-**BLOOP (Beginner-Level Object-Oriented Program)** is a small scripting language that reads like plain English sentences.  
-It supports variables, arithmetic, conditionals, and loops.
-
-put 10 into x
-put 3 into y
-put x + y * 2 into result
-print result
-
-if result > 10 then:
-print "big number"
-
-repeat 3 times:
-print "hello"
-
-
-
-## Team
-
-| Member   | Responsibility |
-|----------|---------------|
-| Member 1 | token/ — TokenType, Token, Tokenizer · Main.java |
-| Member 2 | ast/ — Expression nodes · parser/ — Parser |
-| Member 3 | instruction/ — Instructions · runtime/ — Environment · interpreter/ |
-
-
+---
 
 ## Project Structure
 
-bloop-interpreter/
+```
+bloop-interpreter-java/
 ├── src/
-│ └── bloop/
-│ ├── token/
-│ │ ├── TokenType.java
-│ │ ├── Token.java
-│ │ └── Tokenizer.java
-│ ├── ast/
-│ │ ├── Expression.java
-│ │ ├── NumberNode.java
-│ │ ├── StringNode.java
-│ │ ├── VariableNode.java
-│ │ └── BinaryOpNode.java
-│ ├── instruction/
-│ │ ├── Instruction.java
-│ │ ├── AssignInstruction.java
-│ │ ├── PrintInstruction.java
-│ │ ├── IfInstruction.java
-│ │ └── RepeatInstruction.java
-│ ├── runtime/
-│ │ └── Environment.java
-│ ├── parser/
-│ │ └── Parser.java
-│ ├── interpreter/
-│ │ └── Interpreter.java
-│ └── Main.java
-├── examples/
-│ ├── program1.bloop
-│ ├── program2.bloop
-│ ├── program3.bloop
-│ └── program4.bloop
+│   └── bloop/
+│       ├── ast/                  # Expression nodes (NumberNode, StringNode, etc.)
+│       ├── exceptions/           # BloopException hierarchy
+│       ├── instruction/          # Instruction nodes (Assign, Print, If, Repeat)
+│       ├── interpreter/          # Interpreter entry point
+│       ├── lexer/                # Tokenizer helpers (cursor, registries, indentation)
+│       ├── parser/               # Parser, statement parsers, expression parser
+│       ├── runtime/              # Environment (variable store)
+│       ├── token/                # Token, TokenType, Tokenizer
+│       └── Main.java             # Program entry point
+├── tests/
+│   └── bloop/
+│       ├── ast/                  # Unit tests for AST nodes
+│       ├── instruction/          # Unit tests for instructions
+│       ├── interpreter/          # End-to-end tests
+│       ├── parser/               # Parser and expression parser tests
+│       ├── runtime/              # Environment tests
+│       └── token/                # Tokenizer tests
 ├── docs/
-│ ├── Architecture.md
-│ ├── DesignPatterns.md
-│ └── LanguageSpec.md
-├── .gitignore
+│   ├── Architecture.md           # System design and component breakdown
+│   ├── DesignPatterns.md         # Design patterns used in the codebase
+│   ├── LanguageSpec.md           # Formal language specification
+│   └── UserGuide.md              # How to write Bloop programs
+├── lib/                          # jUnit libraries for running tests
+│   
 └── README.md
+│   
+└── .gitignore                    
+```
 
+---
 
-
-
-
-
-## How to Compile and Run
+## Getting Started
 
 ### Prerequisites
-- Java 11 or higher
-- No external libraries required
 
+- Java 17 or higher
+- IntelliJ IDEA (recommended) or any Java IDE
 
+### Running a Bloop Program
 
-### Step 1 — Compile
-javac -d out
-src/bloop/token/.java
-src/bloop/ast/.java
-src/bloop/instruction/.java
-src/bloop/runtime/.java
-src/bloop/parser/.java
-src/bloop/interpreter/.java
-src/bloop/Main.java
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/<your-org>/bloop-interpreter-java.git
+   cd bloop-interpreter-java
+   ```
 
+2. Open the project in your IDE and build it.
 
+### Option 1: Using CLI (Recommended)
 
+1. Compile the project:
 
+```bash
+javac -d out $(find src -name "*.java")
+```
 
-### Step 2 — Run a .bloop file
+2. Run a Bloop program:
 
+```bash
 java -cp out bloop.Main examples/program1.bloop
+```
 
+3. Run multiple programs:
 
+```bash
+java -cp out bloop.Main examples/program1.bloop examples/program2.bloop
+```
 
+### Option 2: Using Interpreter (Inside Java Code)
+You can directly execute Bloop source code using the Interpreter class:
 
-### Example Output
-16
+```bash
+java -cp out bloop.Main examples/program1.bloop examples/program2.bloop
+```
+#### Note: This must be written inside a Java class (e.g., Main.java) and NOT in the terminal.
 
+---
 
+## Running Tests
 
-## Architecture
+All tests are in the `tests/` directory and follow the same package structure as `src/`.
 
-The interpreter works as a three-step pipeline. Each stage processes the output of the previous one.
+### Using IntelliJ IDEA (Recommended)
+* Right-click on the tests/ folder
+* Click Run 'All Tests'
 
+### Using Command Line (with JUnit JARs)
+This project uses JUnit 5 libraries located in the lib/ directory.
 
-Source Code (.bloop)
-↓
-Tokenizer (Lexer)
-↓
-Parser
-↓
-Interpreter + Environment
-↓
-Output
+**1. Compile source + test files:**
 
+```bash
+javac -d out -cp "lib/*" $(find src -name "*.java") $(find tests -name "*.java")
+```
+**2. Run tests:**
 
+```bash
+javac -d out -cp "lib/*" $(find src -name "*.java") $(find tests -name "*.java")
+```
+###### On Windows (CMD), replace : with ;
+```bash
+javac -d out -cp "lib/*" $(find src -name "*.java") $(find tests -name "*.java")
+```
 
 
-## Why a Tree for Expressions?
+The test suite includes unit tests for every component and end-to-end tests in `E2ETest.java`.
 
-A flat list of tokens cannot capture operator precedence. A tree can.
-
-For:
-x + y * 2
-
-
-Tree representation:
-    Add
-   /   \
-  x   Multiply
-       /     \
-      y       2
-
-
-
-The deeper a node is in the tree, the earlier it gets evaluated.
-
-
-
-## Design Patterns
-
-| Pattern   | Location       | Purpose |
-|-----------|--------------|--------|
-| Composite | ast/         | Expression trees |
-| Strategy  | instruction/ | Instruction execution |
-| Pipeline  | Interpreter  | Lexer → Parser → Execution |
-
-
-
-## OOP Principles
-
-| Principle | How it is applied |
-|----------|------------------|
-| Single Responsibility | Each component has one clear job |
-| Open / Closed | New features can be added without modifying existing code |
-| Liskov Substitution | Expression subclasses behave consistently |
-| Dependency Inversion | Interpreter depends on abstractions |
-
-
-
-## Sample Programs
-
-### Program 1 — Arithmetic
-put 10 into x
-put 3 into y
-put x + y * 2 into result
-print result
-
-
-Output:
-
-16
-
-
-### Program 2 — String Output
-
-
-put "Sitare" into name
-print name
-print "Hello from BLOOP"
-
-
-Output:
-
-
-Sitare
-Hello from BLOOP
-
-
-
-
-### Program 3 — Conditional
-
-
-put 85 into score
-if score > 50 then:
-print "Pass"
-
-
-Output:
-
-Pass
-
-
-
-### Program 4 — Loop
-
-
-put 1 into i
-repeat 4 times:
-print i
-put i + 1 into i
-
-
-Output:
-
-
-1
-2
-3
-4
-
-
+---
 
 ## Git Workflow
 
+This project follows a structured branching strategy:
 
-main → stable code
-dev → integration branch
-├── feature/tokenizer
-├── feature/ast-parser
-└── feature/runtime
+```
+main
+└── dev
+    ├── feature/tokenizer
+    ├── feature/parser
+    ├── feature/evaluator
+    └── integration
+```
 
+| Branch | Purpose |
+|---|---|
+| `main` | Stable, production-ready code. Requires **2 approvals** to merge. |
+| `dev` | Active development. Requires **1 approval** to merge. |
+| `feature/tokenizer` | Lexer and tokenization work |
+| `feature/parser` | Parser and AST construction |
+| `feature/evaluator` | Instruction execution and runtime |
+| `integration` | Cross-component integration and integration testing |
 
-### Rules
+**Merge flow:** `feature/*` → `dev` → `main` (via Pull Requests only)
 
-- Never commit directly to main
-- All feature branches merge into dev via Pull Request
-- dev merges into main only after testing
+---
 
+## Documentation
 
+| Document | Description |
+|---|---|
+| [UserGuide.md](docs/UserGuide.md) | How to write programs in Bloop |
+| [LanguageSpec.md](docs/LanguageSpec.md) | Formal grammar and language rules |
+| [Architecture.md](docs/Architecture.md) | System design, pipeline, and component responsibilities |
+| [DesignPatterns.md](docs/DesignPatterns.md) | Design patterns applied in this codebase |
 
-## Dependencies
+---
 
-- Java 11+
-- No external libraries
+## License
+
+This project is for educational purposes.

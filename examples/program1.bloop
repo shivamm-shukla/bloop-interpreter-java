@@ -1,0 +1,4 @@
+put 10 into x
+put 3 into y
+put x + y * 2 into result
+print result

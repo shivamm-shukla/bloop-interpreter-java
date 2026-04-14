@@ -1,187 +1,178 @@
-# Design Patterns and OOP Principles
+# Design Patterns
 
-> This document explains which design patterns and object-oriented principles appear in the BLOOP interpreter, exactly where they are applied, and why each decision was made.
-
----
-
-## Design Patterns
-
-### 1. Composite Pattern
-
-**Location:** `src/bloop/ast/`  
-**Classes involved:** `Expression`, `NumberNode`, `StringNode`, `VariableNode`, `BinaryOpNode`
-
-#### What it is
-
-The Composite pattern lets you treat individual objects and compositions of objects the same way. A single number and a complex nested expression both respond to the same `evaluate()` call.
-
-#### How it appears in BLOOP
-
-The `Expression` interface has one method:
-```java
-Object evaluate(Environment env);
-```
-
-Leaf nodes (`NumberNode`, `StringNode`, `VariableNode`) hold a single value and return it directly.
-
-`BinaryOpNode` is the composite — it holds two `Expression` children and an operator. When evaluated, it asks each child to evaluate itself, then applies the operator.
-
-```
-BinaryOpNode("+")
-    ├── VariableNode("x")          ← leaf
-    └── BinaryOpNode("*")          ← composite
-            ├── VariableNode("y")  ← leaf
-            └── NumberNode(2)      ← leaf
-```
-
-Because every node implements `Expression`, `BinaryOpNode` does not need to know or care whether its children are simple values or further nested expressions. It just calls `evaluate()` on each one.
-
-#### Why this was the right choice
-
-Without Composite, the evaluator would need `if (left instanceof NumberNode)` checks everywhere. With Composite, every node is treated identically — the tree evaluates itself recursively with no special-case logic.
+> Design patterns applied in the Bloop Interpreter codebase — what they are, where they live, and why they were chosen.
 
 ---
 
-### 2. Strategy Pattern
+## Table of Contents
 
-**Location:** `src/bloop/instruction/`  
-**Classes involved:** `Instruction`, `AssignInstruction`, `PrintInstruction`, `IfInstruction`, `RepeatInstruction`
+1. [Interpreter Pattern](#1-interpreter-pattern)
+2. [Composite Pattern](#2-composite-pattern)
+3. [Strategy Pattern](#3-strategy-pattern)
+4. [Registry Pattern](#4-registry-pattern)
+5. [Template Method (via Interface Default Behaviour)](#5-template-method-via-interface-default-behaviour)
+6. [Null Object Pattern](#6-null-object-pattern)
+7. [Factory Method Pattern](#7-factory-method-pattern)
+8. [Cursor / Iterator Pattern](#8-cursor--iterator-pattern)
 
-#### What it is
+---
 
-The Strategy pattern defines a family of algorithms, puts each in its own class, and makes them interchangeable through a common interface.
+## 1. Interpreter Pattern
 
-#### How it appears in BLOOP
+**What it is:** Each node in an Abstract Syntax Tree implements an `interpret` or `evaluate` method. Traversal is done by calling that method recursively, passing shared context.
 
-The `Instruction` interface defines one method:
+**Where it lives:**
+
+- `Expression` interface → `evaluate(Environment env) : Object`
+- Implementations: `NumberNode`, `StringNode`, `VariableNode`, `BinaryOpNode`
+- `Instruction` interface → `execute(Environment env)`
+- Implementations: `AssignInstruction`, `PrintInstruction`, `IfInstruction`, `RepeatInstruction`
+
+**Why it was chosen:** The AST nodes own their own evaluation logic. Adding a new expression type means adding one class — no switch statements, no `instanceof` chains, no changes to existing classes. This is the heart of a tree-walking interpreter.
+
 ```java
-void execute(Environment env);
-```
-
-Each instruction type is its own class with its own `execute()` implementation:
-
-| Class | What execute() does |
-|-------|---------------------|
-| `AssignInstruction` | Evaluates expression, stores result in Environment |
-| `PrintInstruction` | Evaluates expression, prints result to stdout |
-| `IfInstruction` | Evaluates condition, runs body if true |
-| `RepeatInstruction` | Runs body a fixed number of times |
-
-The Interpreter's execution loop does not need to know which instruction it is running:
-```java
-for (Instruction instr : instructions) {
-    instr.execute(env);   // same call every time
+// Each node knows how to evaluate itself
+public Object evaluate(Environment env) {
+    Object left  = leftOperand.evaluate(env);
+    Object right = rightOperand.evaluate(env);
+    return applyArithmetic(left, right, operator);
 }
 ```
 
-#### Why this was the right choice
+---
 
-If we used a single class with a big `if-else` or `switch` block, adding a new instruction type would require editing existing code. With Strategy, adding a new instruction means adding one new class. Nothing else changes.
+## 2. Composite Pattern
+
+**What it is:** Individual objects and compositions of objects are treated uniformly through a shared interface. A composite node contains children of the same interface type.
+
+**Where it lives:**
+
+- `BinaryOpNode` contains two `Expression` children, both accessed through the `Expression` interface.
+- `IfInstruction` and `RepeatInstruction` contain `List<Instruction>` as their bodies — lists of the same `Instruction` interface they themselves implement.
+
+**Why it was chosen:** Nested expressions like `(a + b) * (c - d)` and nested blocks like a `repeat` inside an `if` are handled without any special cases. The tree can be arbitrarily deep and execution remains a simple recursive call.
+
+```java
+// IfInstruction holds a List<Instruction> body — same type as itself
+thenBody.forEach(instruction -> instruction.execute(env));
+```
 
 ---
 
-### 3. Pipeline Pattern
+## 3. Strategy Pattern
 
-**Location:** `src/bloop/interpreter/Interpreter.java`
+**What it is:** A family of algorithms is encapsulated behind a common interface, and the appropriate one is selected at runtime.
 
-#### What it is
+**Where it lives:**
 
-The Pipeline pattern structures a process as a sequence of independent stages. Each stage receives the output of the previous stage as its input.
+- `StatementParser` interface — each implementation (`PutStatementParser`, `PrintStatementParser`, `IfStatementParser`, `RepeatStatementParser`) is a separate parsing strategy.
+- `BlockParser` functional interface — the block-parsing behaviour is passed as a strategy into every `StatementParser.parse()` call.
 
-#### How it appears in BLOOP
+**Why it was chosen:** Each statement has its own syntax rules. Encapsulating them as separate strategy objects means they can be developed, tested, and extended independently. The `Parser` itself stays thin — it just dispatches to the right strategy.
 
 ```java
-public void run(String sourceCode) {
-    // Stage 1
-    Tokenizer tokenizer = new Tokenizer(sourceCode);
-    List<Token> tokens = tokenizer.tokenize();
+// The correct parsing strategy is selected by the registry at runtime
+StatementParser handler = statementRegistry.resolve(currentToken);
+return handler.parse(cursor, () -> parseIndentedBlock(cursor));
+```
 
-    // Stage 2
-    Parser parser = new Parser(tokens);
-    List<Instruction> instructions = parser.parse();
+---
 
-    // Stage 3
-    Environment env = new Environment();
-    for (Instruction instr : instructions) {
-        instr.execute(env);
+## 4. Registry Pattern
+
+**What it is:** A central map from a key to a handler object, looked up at runtime. A variation of Strategy where the selection is data-driven rather than hardcoded.
+
+**Where it lives:**
+
+- `StatementParserRegistry` — maps `TokenType` → `StatementParser`. Built once at startup from a list of registered parsers.
+- `KeywordRegistry` — maps `String` word → `TokenType`. A static map used during lexing.
+- `OperatorRegistry` — maps `Character` → `TokenType` (single) or `CompoundEntry` (two-character operators).
+
+**Why it was chosen:** Adding a new statement, keyword, or operator requires registering one new entry. The lookup code never changes. This keeps the core pipeline open for extension and closed for modification (Open/Closed Principle).
+
+```java
+// StatementParserRegistry built from a list — no hardcoded dispatch
+List<StatementParser> builtInParsers = List.of(
+                new PutStatementParser(sharedExpressionParser),
+                new PrintStatementParser(sharedExpressionParser),
+                new IfStatementParser(sharedExpressionParser),
+                new RepeatStatementParser(sharedExpressionParser)
+        );
+return new Parser(new StatementParserRegistry(builtInParsers));
+```
+
+---
+
+## 5. Template Method (via Interface Default Behaviour)
+
+**What it is:** A skeleton algorithm is defined in a base type; subclasses or implementations fill in specific steps.
+
+**Where it lives:**
+
+- `StatementParser` interface defines the contract: `triggerToken()` returns the token that activates this parser, and `parse()` performs the actual parsing. Every implementation provides both.
+- `BlockParser` functional interface acts as a callback that any `StatementParser` can invoke to parse an indented sub-block without knowing how blocks work internally.
+
+**Why it was chosen:** All statement parsers follow the same skeleton — check the trigger, parse the syntax, return an instruction. Factoring out the trigger token as a separate method allows the registry to build itself automatically. The `BlockParser` callback prevents code duplication across `IfStatementParser` and `RepeatStatementParser`.
+
+---
+
+## 6. Null Object Pattern
+
+**What it is:** Instead of returning `null` to represent "nothing found", a safe default object is returned that behaves harmlessly.
+
+**Where it lives:**
+
+- `TokenCursor.current()` — when the cursor is past the end of the token list, it returns `new Token(TokenType.EOF, "EOF", -1)` instead of `null`. Every caller can safely call `.type()` without a null check.
+- `TokenCursor.tryConsume()` — returns `null` only as an explicit "not matched" signal, documented and handled at every call site. This is intentional to support `while (token = cursor.tryConsume(...)) != null` loops.
+
+**Why it was chosen:** `NullPointerException` during parsing would be hard to diagnose and would produce no useful error message. Returning a sentinel `EOF` token means the parser always has a token to inspect, and the error message comes from the parser's own exception rather than a surprise NPE.
+
+```java
+public Token current() {
+    if (currentIndex >= tokens.size()) {
+        return new Token(TokenType.EOF, "EOF", -1); // safe sentinel
     }
+    return tokens.get(currentIndex);
 }
 ```
 
-The three stages — Tokenizer, Parser, Evaluator — are completely independent. The Tokenizer knows nothing about instructions. The Parser knows nothing about how values get printed. Each stage has exactly one responsibility.
+---
 
-#### Why this was the right choice
+## 7. Factory Method Pattern
 
-Independence between stages means each part can be developed, tested, and debugged in isolation. A bug in the Parser does not affect the Tokenizer. A bug in the Evaluator does not affect the Parser.
+**What it is:** Object creation is delegated to a static factory method rather than calling constructors directly, allowing the creation logic to be encapsulated and reused.
+
+**Where it lives:**
+
+- `Parser.createDefault()` — a static factory method that wires up all the default statement parsers, creates a shared `ExpressionParser`, builds the `StatementParserRegistry`, and returns a fully configured `Parser`.
+
+**Why it was chosen:** `Interpreter` should not need to know the internal wiring of the parser. `createDefault()` centralises that knowledge. Tests can bypass it and pass a custom `StatementParserRegistry` directly through the constructor.
+
+```java
+// Interpreter uses the factory — knows nothing about the wiring
+this.parser = Parser.createDefault();
+
+// Tests can inject a custom registry directly
+return new Parser(new StatementParserRegistry(customParsers));
+```
 
 ---
 
-## OOP Principles (SOLID)
+## 8. Cursor / Iterator Pattern
 
-### S — Single Responsibility Principle
+**What it is:** Stateful traversal of a collection is encapsulated in a separate object, providing a clean API for advancing through elements one at a time.
 
-> A class should have only one reason to change.
+**Where it lives:**
 
-| Class | Its one responsibility |
-|-------|------------------------|
-| `Tokenizer` | Break source text into tokens |
-| `Token` | Hold one piece of source code immutably |
-| `Parser` | Turn a token list into an instruction list |
-| `Environment` | Store and retrieve variable values |
-| `BinaryOpNode` | Represent and evaluate a binary expression |
-| `AssignInstruction` | Execute one assignment statement |
+- `LexerCursor` — encapsulates position within the raw source `String`. Provides `currentChar()`, `peekNextChar()`, `advance()`, `advanceIf()`, `sliceFrom()`.
+- `TokenCursor` — encapsulates position within the `List<Token>`. Provides `current()`, `consume()`, `expect()`, `tryConsume()`, `check()`, `skipNewlines()`.
 
-None of these classes reach into each other's territory. If the way variables are stored needs to change, only `Environment` changes. If the BLOOP syntax changes, only `Tokenizer` and `Parser` change.
+**Why it was chosen:** The `Tokenizer` and `Parser` have complex, non-linear traversal logic (lookahead, conditional advancement, backtracking-free single-pass parsing). Encapsulating the traversal state in a cursor object keeps the main logic readable and prevents index-arithmetic bugs from spreading across the codebase.
 
----
-
-### O — Open / Closed Principle
-
-> Classes should be open for extension, closed for modification.
-
-Both `Expression` and `Instruction` are interfaces. To add a new feature:
-
-- New expression type (e.g. unary minus) → add `UnaryOpNode implements Expression`. Nothing else changes.
-- New instruction type (e.g. while loop) → add `WhileInstruction implements Instruction`. Nothing else changes.
-
-The `Interpreter` execution loop, the `Environment`, and all existing classes remain untouched.
-
----
-
-### L — Liskov Substitution Principle
-
-> Subtypes must be substitutable for their base type without breaking the program.
-
-Wherever the code expects an `Expression`, any of these works identically:
-- `NumberNode`
-- `StringNode`
-- `VariableNode`
-- `BinaryOpNode`
-
-The `Parser` stores expression results as `Expression` references. The `Interpreter` calls `evaluate()` without knowing or caring which subclass it has. Any subclass can stand in for any other without breaking anything.
-
----
-
-### D — Dependency Inversion Principle
-
-> High-level modules should depend on abstractions, not on concrete implementations.
-
-The `Interpreter` class (high-level) depends on:
-- The `Instruction` **interface** — not on `AssignInstruction`, `PrintInstruction`, etc. directly
-- The `Environment` **class** as a single shared abstraction
-
-The `Parser` produces `List<Instruction>` — it does not know or care which concrete instruction subclasses it creates at the call site. The execution loop treats them all identically through the interface.
-
----
-
-## Summary Table
-
-| Concept | Where | One-line reason |
-|---------|-------|-----------------|
-| Composite Pattern | `ast/` | Lets simple and complex expressions be treated identically |
-| Strategy Pattern | `instruction/` | Each instruction type encapsulates its own behaviour |
-| Pipeline Pattern | `Interpreter.java` | Keeps the three stages independent and testable |
-| Single Responsibility | Every class | Each class has exactly one job |
-| Open / Closed | `Expression`, `Instruction` interfaces | New features = new classes, no edits to existing code |
-| Liskov Substitution | All `Expression` subclasses | Any node works wherever `Expression` is expected |
-| Dependency Inversion | `Interpreter`, `Parser` | Both depend on interfaces, not concrete classes |
+```java
+// All position state is hidden inside the cursor
+Token operatorToken = cursor.tryConsume(
+                TokenType.PLUS, TokenType.MINUS
+        );
+if (operatorToken != null) { ... }
+```
